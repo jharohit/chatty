@@ -7,9 +7,11 @@ process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 app.commandLine.appendSwitch('log-level', '3');
 app.commandLine.appendSwitch('js-flags', '--max-old-space-size=512');
 
-// Modern standard macOS Chrome User Agent to guarantee WhatsApp, Google Chat, and Slack compatibility
+// Modern standard macOS Chrome User Agent to guarantee Slack, WhatsApp, Google Chat compatibility
 const CHROME_USER_AGENT =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36';
+
+app.userAgentFallback = CHROME_USER_AGENT;
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -77,6 +79,20 @@ app.on('web-contents-created', (_event, contents) => {
   // Apply standard Chrome user agent
   contents.setUserAgent(CHROME_USER_AGENT);
 
+  // Intercept HTTP request headers to strip any residual Electron identifier
+  try {
+    contents.session.webRequest.onBeforeSendHeaders(
+      { urls: ['*://*/*'] },
+      (details, callback) => {
+        details.requestHeaders['User-Agent'] = CHROME_USER_AGENT;
+        if (details.requestHeaders['sec-ch-ua']) {
+          details.requestHeaders['sec-ch-ua'] = '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"';
+        }
+        callback({ requestHeaders: details.requestHeaders });
+      }
+    );
+  } catch {}
+
   // Enable microphone, camera, notification, and persistent-storage permissions
   contents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
     const allowedPermissions = [
@@ -103,7 +119,9 @@ app.on('web-contents-created', (_event, contents) => {
       url.includes('accounts.google.com') ||
       url.includes('appleid.apple.com') ||
       url.includes('github.com/login') ||
-      url.includes('oauth')
+      url.includes('oauth') ||
+      url.includes('slack.com/signin') ||
+      url.includes('slack.com/oauth')
     ) {
       return { action: 'allow' };
     }

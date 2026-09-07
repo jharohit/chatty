@@ -26,8 +26,11 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var import_electron = require("electron");
 var import_path = __toESM(require("path"));
 var import_os = __toESM(require("os"));
+process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = "true";
+import_electron.app.commandLine.appendSwitch("log-level", "3");
 import_electron.app.commandLine.appendSwitch("js-flags", "--max-old-space-size=512");
-var CHROME_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+var CHROME_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36";
+import_electron.app.userAgentFallback = CHROME_USER_AGENT;
 var mainWindow = null;
 function createWindow() {
   mainWindow = new import_electron.BrowserWindow({
@@ -55,6 +58,7 @@ function createWindow() {
     mainWindow?.show();
   });
   mainWindow.webContents.on("console-message", (_event, level, message, line, sourceId) => {
+    if (message.includes("Electron Security Warning")) return;
     const levels = ["DEBUG", "INFO", "WARN", "ERROR"];
     const lvlName = levels[level] || "LOG";
     const src = sourceId ? import_path.default.basename(sourceId) : "renderer";
@@ -81,12 +85,37 @@ function createWindow() {
 }
 import_electron.app.on("web-contents-created", (_event, contents) => {
   contents.setUserAgent(CHROME_USER_AGENT);
+  try {
+    contents.session.webRequest.onBeforeSendHeaders(
+      { urls: ["*://*/*"] },
+      (details, callback) => {
+        details.requestHeaders["User-Agent"] = CHROME_USER_AGENT;
+        if (details.requestHeaders["sec-ch-ua"]) {
+          details.requestHeaders["sec-ch-ua"] = '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"';
+        }
+        callback({ requestHeaders: details.requestHeaders });
+      }
+    );
+  } catch {
+  }
   contents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
-    const allowedPermissions = ["media", "geolocation", "notifications", "midi", "camera", "microphone"];
+    const allowedPermissions = [
+      "media",
+      "geolocation",
+      "notifications",
+      "midi",
+      "camera",
+      "microphone",
+      "persistent-storage",
+      "storage-access",
+      "clipboard-read",
+      "clipboard-sanitized-write"
+    ];
     callback(allowedPermissions.includes(permission));
   });
+  contents.session.setPermissionCheckHandler(() => true);
   contents.setWindowOpenHandler(({ url }) => {
-    if (url.includes("accounts.google.com") || url.includes("appleid.apple.com") || url.includes("github.com/login") || url.includes("oauth")) {
+    if (url.includes("accounts.google.com") || url.includes("appleid.apple.com") || url.includes("github.com/login") || url.includes("oauth") || url.includes("slack.com/signin") || url.includes("slack.com/oauth")) {
       return { action: "allow" };
     }
     import_electron.shell.openExternal(url);

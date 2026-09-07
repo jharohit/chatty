@@ -139,17 +139,17 @@ export const WebViewContainer: React.FC = () => {
           </div>
         ) : platform.isElectron ? (
           /* Real Electron Webview */
-          <webview
-            id={`webview-${service.id}`}
-            src={service.url}
-            partition={service.partition}
-            // @ts-ignore
-            allowpopups="true"
-            webpreferences="contextIsolation=true, spellcheck=true"
-            style={{ width: '100%', height: '100%', flex: 1 }}
-            ref={(node) => {
-              if (node && !(node as any)._chattyAttached) {
-                (node as any)._chattyAttached = true;
+          React.createElement('webview', {
+            id: `webview-${service.id}`,
+            src: service.url,
+            partition: service.partition,
+            useragent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
+            allowpopups: 'true',
+            webpreferences: 'contextIsolation=true, spellcheck=true',
+            style: { width: '100%', height: '100%', flex: 1 },
+            ref: (node: any): void => {
+              if (node && !node._chattyAttached) {
+                node._chattyAttached = true;
 
                 // Title update listener for unread badge count
                 node.addEventListener('page-title-updated', (e: any) => {
@@ -173,19 +173,19 @@ export const WebViewContainer: React.FC = () => {
                 // Set zoom and mute safely only once dom-ready has fired!
                 node.addEventListener('dom-ready', () => {
                   try {
-                    if (service.zoomFactor && typeof (node as any).setZoomFactor === 'function') {
-                      (node as any).setZoomFactor(service.zoomFactor);
+                    if (service.zoomFactor && typeof node.setZoomFactor === 'function') {
+                      node.setZoomFactor(service.zoomFactor);
                     }
-                    if (service.isMuted && typeof (node as any).setAudioMuted === 'function') {
-                      (node as any).setAudioMuted(true);
+                    if (service.isMuted && typeof node.setAudioMuted === 'function') {
+                      node.setAudioMuted(true);
                     }
                   } catch (err) {
                     console.warn('Could not set initial webview properties:', err);
                   }
                 });
               }
-            }}
-          />
+            },
+          })
         ) : (
           /* Browser Preview Fallback for testing */
           <div className="w-full h-full flex flex-col items-center justify-center p-8 bg-slate-50 dark:bg-zinc-900 text-center">

@@ -2,6 +2,18 @@
 
 // electron/webview-preload.ts
 var import_electron = require("electron");
+try {
+  const CHROME_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36";
+  Object.defineProperty(navigator, "userAgent", {
+    get: () => CHROME_UA,
+    configurable: false
+  });
+  Object.defineProperty(navigator, "appVersion", {
+    get: () => "5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
+    configurable: false
+  });
+} catch {
+}
 function parseTitleForUnread(title) {
   if (!title) return 0;
   const matchParen = title.match(/\((\d+)\)/);
