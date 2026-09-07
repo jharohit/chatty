@@ -29,7 +29,7 @@ var import_os = __toESM(require("os"));
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = "true";
 import_electron.app.commandLine.appendSwitch("log-level", "3");
 import_electron.app.commandLine.appendSwitch("js-flags", "--max-old-space-size=512");
-var CHROME_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36";
+var CHROME_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.76 Safari/537.36";
 import_electron.app.userAgentFallback = CHROME_USER_AGENT;
 var mainWindow = null;
 function createWindow() {
@@ -90,9 +90,9 @@ import_electron.app.on("web-contents-created", (_event, contents) => {
       { urls: ["*://*/*"] },
       (details, callback) => {
         details.requestHeaders["User-Agent"] = CHROME_USER_AGENT;
-        if (details.requestHeaders["sec-ch-ua"]) {
-          details.requestHeaders["sec-ch-ua"] = '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"';
-        }
+        details.requestHeaders["sec-ch-ua"] = '"Google Chrome";v="152", "Chromium";v="152", "Not_A Brand";v="24"';
+        details.requestHeaders["sec-ch-ua-mobile"] = "?0";
+        details.requestHeaders["sec-ch-ua-platform"] = '"macOS"';
         callback({ requestHeaders: details.requestHeaders });
       }
     );

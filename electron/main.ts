@@ -9,7 +9,7 @@ app.commandLine.appendSwitch('js-flags', '--max-old-space-size=512');
 
 // Modern standard macOS Chrome User Agent to guarantee Slack, WhatsApp, Google Chat compatibility
 const CHROME_USER_AGENT =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36';
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.76 Safari/537.36';
 
 app.userAgentFallback = CHROME_USER_AGENT;
 
@@ -85,9 +85,9 @@ app.on('web-contents-created', (_event, contents) => {
       { urls: ['*://*/*'] },
       (details, callback) => {
         details.requestHeaders['User-Agent'] = CHROME_USER_AGENT;
-        if (details.requestHeaders['sec-ch-ua']) {
-          details.requestHeaders['sec-ch-ua'] = '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"';
-        }
+        details.requestHeaders['sec-ch-ua'] = '"Google Chrome";v="152", "Chromium";v="152", "Not_A Brand";v="24"';
+        details.requestHeaders['sec-ch-ua-mobile'] = '?0';
+        details.requestHeaders['sec-ch-ua-platform'] = '"macOS"';
         callback({ requestHeaders: details.requestHeaders });
       }
     );
