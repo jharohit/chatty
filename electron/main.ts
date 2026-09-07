@@ -2,7 +2,9 @@ import { app, BrowserWindow, ipcMain, shell, session } from 'electron';
 import path from 'path';
 import os from 'os';
 
-// Memory Optimization Flags (Safe flags for Electron 34)
+// Silence non-actionable Chromium internal logs and dev security warnings
+process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
+app.commandLine.appendSwitch('log-level', '3');
 app.commandLine.appendSwitch('js-flags', '--max-old-space-size=512');
 
 // Modern standard macOS Chrome User Agent to guarantee WhatsApp, Google Chat, and Slack compatibility
@@ -38,8 +40,9 @@ function createWindow() {
     mainWindow?.show();
   });
 
-  // Live tail renderer logs to terminal
+  // Live tail renderer logs to terminal (filter out noisy Electron security warnings)
   mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    if (message.includes('Electron Security Warning')) return;
     const levels = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
     const lvlName = levels[level] || 'LOG';
     const src = sourceId ? path.basename(sourceId) : 'renderer';
