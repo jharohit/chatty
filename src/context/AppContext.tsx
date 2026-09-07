@@ -67,7 +67,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem(STORAGE_KEYS.SERVICES);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((s: Service) => {
+            if (s.type === 'slack' && (s.url === 'https://app.slack.com/client' || s.url.includes('unsupported-browser'))) {
+              return { ...s, url: 'https://slack.com/signin' };
+            }
+            return s;
+          });
+        }
       }
     } catch (e) {
       console.error('Failed to load services from localStorage:', e);

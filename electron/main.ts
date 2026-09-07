@@ -128,6 +128,20 @@ app.on('web-contents-created', (_event, contents) => {
     shell.openExternal(url);
     return { action: 'deny' };
   });
+
+  // Automatically catch and recover from Slack unsupported-browser redirects
+  contents.on('will-navigate', (event, navigationUrl) => {
+    if (navigationUrl.includes('slack.com/unsupported-browser')) {
+      event.preventDefault();
+      contents.loadURL('https://slack.com/signin');
+    }
+  });
+
+  contents.on('did-redirect-navigation', (_event, navigationUrl) => {
+    if (navigationUrl.includes('slack.com/unsupported-browser')) {
+      contents.loadURL('https://slack.com/signin');
+    }
+  });
 });
 
 // App Lifecycle

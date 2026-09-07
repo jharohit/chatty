@@ -121,6 +121,17 @@ import_electron.app.on("web-contents-created", (_event, contents) => {
     import_electron.shell.openExternal(url);
     return { action: "deny" };
   });
+  contents.on("will-navigate", (event, navigationUrl) => {
+    if (navigationUrl.includes("slack.com/unsupported-browser")) {
+      event.preventDefault();
+      contents.loadURL("https://slack.com/signin");
+    }
+  });
+  contents.on("did-redirect-navigation", (_event2, navigationUrl) => {
+    if (navigationUrl.includes("slack.com/unsupported-browser")) {
+      contents.loadURL("https://slack.com/signin");
+    }
+  });
 });
 import_electron.app.whenReady().then(() => {
   createWindow();
