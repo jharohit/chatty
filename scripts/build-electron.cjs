@@ -32,4 +32,8 @@ async function build() {
   }
 }
 
-build();
+if (require.main === module) {
+  build();
+}
+
+module.exports = { build };

@@ -26,8 +26,6 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var import_electron = require("electron");
 var import_path = __toESM(require("path"));
 var import_os = __toESM(require("os"));
-import_electron.app.commandLine.appendSwitch("enable-features", "ResourceSaver,BackgroundTabThrottling,AutomaticTabDiscarding");
-import_electron.app.commandLine.appendSwitch("disable-renderer-backgrounding", "false");
 import_electron.app.commandLine.appendSwitch("js-flags", "--max-old-space-size=512");
 var CHROME_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 var mainWindow = null;
@@ -41,7 +39,8 @@ function createWindow() {
     trafficLightPosition: { x: 18, y: 18 },
     vibrancy: "under-window",
     visualEffectState: "active",
-    backgroundColor: "#00000000",
+    resizable: true,
+    movable: true,
     show: false,
     webPreferences: {
       preload: import_path.default.join(__dirname, "preload.cjs"),
@@ -52,13 +51,29 @@ function createWindow() {
     }
   });
   mainWindow.once("ready-to-show", () => {
+    console.log("\u{1F338} Chatty window ready to show");
     mainWindow?.show();
+  });
+  mainWindow.webContents.on("console-message", (_event, level, message, line, sourceId) => {
+    const levels = ["DEBUG", "INFO", "WARN", "ERROR"];
+    const lvlName = levels[level] || "LOG";
+    const src = sourceId ? import_path.default.basename(sourceId) : "renderer";
+    console.log(`[Renderer ${lvlName}] ${message} (${src}:${line})`);
+  });
+  mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
+    console.error(`[Load Error] Code ${errorCode}: ${errorDescription} at ${validatedURL}`);
+  });
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    console.error(`[Process Terminated]`, details);
   });
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
   if (devServerUrl) {
+    console.log(`Connecting to Vite dev server at: ${devServerUrl}`);
     mainWindow.loadURL(devServerUrl);
   } else {
-    mainWindow.loadFile(import_path.default.join(__dirname, "../dist/index.html"));
+    const indexPath = import_path.default.join(__dirname, "../dist/index.html");
+    console.log(`Loading production bundle from: ${indexPath}`);
+    mainWindow.loadFile(indexPath);
   }
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -92,29 +107,43 @@ import_electron.app.on("window-all-closed", () => {
   }
 });
 import_electron.ipcMain.handle("chatty:get-system-memory", async () => {
-  const totalMem = import_os.default.totalmem();
-  const freeMem = import_os.default.freemem();
-  const appMetrics = import_electron.app.getAppMetrics();
-  const processMem = await process.getProcessMemoryInfo();
-  return {
-    totalMemBytes: totalMem,
-    freeMemBytes: freeMem,
-    processMemoryKB: processMem.residentSet,
-    appMetrics: appMetrics.map((m) => ({
-      pid: m.pid,
-      type: m.type,
-      cpu: m.cpu.percentCPUUsage,
-      memoryMB: Math.round(m.memory.workingSetSize / 1024)
-    }))
-  };
+  try {
+    const totalMem = import_os.default.totalmem();
+    const freeMem = import_os.default.freemem();
+    const appMetrics = import_electron.app.getAppMetrics();
+    const processMem = await process.getProcessMemoryInfo();
+    return {
+      totalMemBytes: totalMem,
+      freeMemBytes: freeMem,
+      processMemoryKB: processMem.residentSet,
+      appMetrics: appMetrics.map((m) => ({
+        pid: m.pid,
+        type: m.type,
+        cpu: m.cpu.percentCPUUsage,
+        memoryMB: Math.round(m.memory.workingSetSize / 1024)
+      }))
+    };
+  } catch (err) {
+    console.error("Error fetching system memory:", err);
+    return {
+      totalMemBytes: 0,
+      freeMemBytes: 0,
+      processMemoryKB: 0,
+      appMetrics: []
+    };
+  }
 });
 import_electron.ipcMain.handle("chatty:set-badge-count", (_event, count) => {
-  if (import_electron.app.dock) {
-    if (count > 0) {
-      import_electron.app.dock.setBadge(count > 99 ? "99+" : count.toString());
-    } else {
-      import_electron.app.dock.setBadge("");
+  try {
+    if (import_electron.app.dock) {
+      if (count > 0) {
+        import_electron.app.dock.setBadge(count > 99 ? "99+" : count.toString());
+      } else {
+        import_electron.app.dock.setBadge("");
+      }
     }
+  } catch (err) {
+    console.warn("Could not set dock badge:", err);
   }
   return true;
 });

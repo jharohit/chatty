@@ -1,10 +1,8 @@
-import { app, BrowserWindow, ipcMain, shell, session, WebContents } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, session } from 'electron';
 import path from 'path';
 import os from 'os';
 
-// Memory Optimization Flags
-app.commandLine.appendSwitch('enable-features', 'ResourceSaver,BackgroundTabThrottling,AutomaticTabDiscarding');
-app.commandLine.appendSwitch('disable-renderer-backgrounding', 'false');
+// Memory Optimization Flags (Safe flags for Electron 34)
 app.commandLine.appendSwitch('js-flags', '--max-old-space-size=512');
 
 // Modern standard macOS Chrome User Agent to guarantee WhatsApp, Google Chat, and Slack compatibility
@@ -23,7 +21,8 @@ function createWindow() {
     trafficLightPosition: { x: 18, y: 18 },
     vibrancy: 'under-window',
     visualEffectState: 'active',
-    backgroundColor: '#00000000',
+    resizable: true,
+    movable: true,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -35,14 +34,34 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => {
+    console.log('🌸 Chatty window ready to show');
     mainWindow?.show();
+  });
+
+  // Live tail renderer logs to terminal
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    const levels = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
+    const lvlName = levels[level] || 'LOG';
+    const src = sourceId ? path.basename(sourceId) : 'renderer';
+    console.log(`[Renderer ${lvlName}] ${message} (${src}:${line})`);
+  });
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    console.error(`[Load Error] Code ${errorCode}: ${errorDescription} at ${validatedURL}`);
+  });
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error(`[Process Terminated]`, details);
   });
 
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
   if (devServerUrl) {
+    console.log(`Connecting to Vite dev server at: ${devServerUrl}`);
     mainWindow.loadURL(devServerUrl);
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    const indexPath = path.join(__dirname, '../dist/index.html');
+    console.log(`Loading production bundle from: ${indexPath}`);
+    mainWindow.loadFile(indexPath);
   }
 
   mainWindow.on('closed', () => {
@@ -96,31 +115,45 @@ app.on('window-all-closed', () => {
 
 // IPC Bridge Handlers
 ipcMain.handle('chatty:get-system-memory', async () => {
-  const totalMem = os.totalmem();
-  const freeMem = os.freemem();
-  const appMetrics = app.getAppMetrics();
-  const processMem = await process.getProcessMemoryInfo();
+  try {
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const appMetrics = app.getAppMetrics();
+    const processMem = await process.getProcessMemoryInfo();
 
-  return {
-    totalMemBytes: totalMem,
-    freeMemBytes: freeMem,
-    processMemoryKB: processMem.residentSet,
-    appMetrics: appMetrics.map((m) => ({
-      pid: m.pid,
-      type: m.type,
-      cpu: m.cpu.percentCPUUsage,
-      memoryMB: Math.round(m.memory.workingSetSize / 1024),
-    })),
-  };
+    return {
+      totalMemBytes: totalMem,
+      freeMemBytes: freeMem,
+      processMemoryKB: processMem.residentSet,
+      appMetrics: appMetrics.map((m) => ({
+        pid: m.pid,
+        type: m.type,
+        cpu: m.cpu.percentCPUUsage,
+        memoryMB: Math.round(m.memory.workingSetSize / 1024),
+      })),
+    };
+  } catch (err: any) {
+    console.error('Error fetching system memory:', err);
+    return {
+      totalMemBytes: 0,
+      freeMemBytes: 0,
+      processMemoryKB: 0,
+      appMetrics: [],
+    };
+  }
 });
 
 ipcMain.handle('chatty:set-badge-count', (_event, count: number) => {
-  if (app.dock) {
-    if (count > 0) {
-      app.dock.setBadge(count > 99 ? '99+' : count.toString());
-    } else {
-      app.dock.setBadge('');
+  try {
+    if (app.dock) {
+      if (count > 0) {
+        app.dock.setBadge(count > 99 ? '99+' : count.toString());
+      } else {
+        app.dock.setBadge('');
+      }
     }
+  } catch (err) {
+    console.warn('Could not set dock badge:', err);
   }
   return true;
 });

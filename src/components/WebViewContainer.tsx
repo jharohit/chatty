@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { Service } from '../types';
 import { THEMES } from '../constants/presets';
 import { platform } from '../services/platform';
 import { ServiceIcon } from './ServiceIcon';
-import { Play, RotateCw, BedDouble, Shield, Zap, Sparkles } from 'lucide-react';
+import { Play, BedDouble, Shield } from 'lucide-react';
 
 export const WebViewContainer: React.FC = () => {
   const {
@@ -35,9 +35,13 @@ export const WebViewContainer: React.FC = () => {
   useEffect(() => {
     const handleReload = (e: any) => {
       const targetId = e.detail?.id || activeServiceId;
-      const wv = document.getElementById(`webview-${targetId}`) as any;
-      if (wv && typeof wv.reload === 'function') {
-        wv.reload();
+      try {
+        const wv = document.getElementById(`webview-${targetId}`) as any;
+        if (wv && typeof wv.reload === 'function') {
+          wv.reload();
+        }
+      } catch (err) {
+        console.warn('Reload error:', err);
       }
     };
 
@@ -82,7 +86,7 @@ export const WebViewContainer: React.FC = () => {
   const isNoir = settings.theme === 'noir';
 
   // Render a single service panel
-  const renderServicePane = (service: Service, isPrimary: boolean) => {
+  const renderServicePane = (service: Service) => {
     const isSleeping = service.isHibernated;
 
     return (
@@ -149,10 +153,14 @@ export const WebViewContainer: React.FC = () => {
 
                 // Title update listener for unread badge count
                 node.addEventListener('page-title-updated', (e: any) => {
-                  const title = e.title || '';
-                  const match = title.match(/\((\d+)\)/);
-                  const count = match ? parseInt(match[1], 10) : title.includes('•') ? 1 : 0;
-                  setUnreadCount(service.id, count);
+                  try {
+                    const title = e.title || '';
+                    const match = title.match(/\((\d+)\)/);
+                    const count = match ? parseInt(match[1], 10) : title.includes('•') ? 1 : 0;
+                    setUnreadCount(service.id, count);
+                  } catch (err) {
+                    console.warn('Error reading page-title:', err);
+                  }
                 });
 
                 // IPC messages from webview-preload
@@ -162,15 +170,19 @@ export const WebViewContainer: React.FC = () => {
                   }
                 });
 
-                // Set zoom factor
-                if (service.zoomFactor && typeof (node as any).setZoomFactor === 'function') {
-                  (node as any).setZoomFactor(service.zoomFactor);
-                }
-
-                // Set audio mute
-                if (service.isMuted && typeof (node as any).setAudioMuted === 'function') {
-                  (node as any).setAudioMuted(true);
-                }
+                // Set zoom and mute safely only once dom-ready has fired!
+                node.addEventListener('dom-ready', () => {
+                  try {
+                    if (service.zoomFactor && typeof (node as any).setZoomFactor === 'function') {
+                      (node as any).setZoomFactor(service.zoomFactor);
+                    }
+                    if (service.isMuted && typeof (node as any).setAudioMuted === 'function') {
+                      (node as any).setAudioMuted(true);
+                    }
+                  } catch (err) {
+                    console.warn('Could not set initial webview properties:', err);
+                  }
+                });
               }
             }}
           />
@@ -212,7 +224,7 @@ export const WebViewContainer: React.FC = () => {
             className="h-full relative overflow-hidden"
             style={{ width: `${settings.splitRatio}%` }}
           >
-            {primaryService && renderServicePane(primaryService, true)}
+            {primaryService && renderServicePane(primaryService)}
           </div>
 
           {/* Draggable Divider */}
@@ -236,7 +248,7 @@ export const WebViewContainer: React.FC = () => {
             className="h-full relative overflow-hidden"
             style={{ width: `${100 - settings.splitRatio}%` }}
           >
-            {secondaryService && renderServicePane(secondaryService, false)}
+            {secondaryService && renderServicePane(secondaryService)}
           </div>
         </div>
       ) : (
@@ -253,7 +265,7 @@ export const WebViewContainer: React.FC = () => {
                 className="w-full h-full absolute inset-0"
                 style={{ display: isVisible ? 'flex' : 'none' }}
               >
-                {renderServicePane(service, true)}
+                {renderServicePane(service)}
               </div>
             );
           })}
