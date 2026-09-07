@@ -273,13 +273,13 @@ export const CommandPalette: React.FC = () => {
                       {item.icon}
                     </div>
                     <div>
-                      <div className="text-xs font-semibold">{item.title}</div>
+                      <div className="text-[13px] font-medium text-zinc-900 dark:text-zinc-100">{item.title}</div>
                       {item.subtitle && (
-                        <div className="text-[11px] text-zinc-400">{item.subtitle}</div>
+                        <div className="text-[12px] text-zinc-500 dark:text-zinc-400">{item.subtitle}</div>
                       )}
                     </div>
                   </div>
-                  <span className="text-[10px] uppercase font-mono tracking-wider opacity-40">
+                  <span className="text-[11px] font-mono tracking-wide opacity-50">
                     {item.category}
                   </span>
                 </div>
@@ -289,14 +289,14 @@ export const CommandPalette: React.FC = () => {
         </div>
 
         {/* Bottom footer tips */}
-        <div className="px-4 py-2 bg-black/[0.02] dark:bg-white/[0.02] border-t border-inherit flex items-center justify-between text-[11px] text-zinc-400">
+        <div className="px-4 py-2.5 bg-black/[0.02] dark:bg-white/[0.02] border-t border-inherit flex items-center justify-between text-[12px] text-zinc-500">
           <div className="flex items-center space-x-3">
             <span>↑↓ Navigate</span>
             <span>↵ Select</span>
             <span>ESC Close</span>
           </div>
-          <div className="flex items-center space-x-1 text-emerald-500">
-            <Shield className="w-3 h-3" />
+          <div className="flex items-center space-x-1 text-emerald-600 dark:text-emerald-400 font-medium">
+            <Shield className="w-3.5 h-3.5" />
             <span>100% Local</span>
           </div>
         </div>

@@ -10,22 +10,33 @@ import {
   VolumeX,
   Zap,
   Shield,
-  Key,
-  Trash2,
   Check,
   Command,
   HardDrive,
-  Info,
+  ZoomIn,
+  Sparkles,
+  Sliders,
+  Keyboard,
+  FolderOpen,
 } from 'lucide-react';
 
-export const SettingsModal: React.FC = () => {
-  const { isSettingsOpen, setSettingsOpen, settings, setTheme, updateService } = useApp();
+type SettingsTab = 'general' | 'memory' | 'privacy' | 'shortcuts';
 
-  const [soundEnabled, setSoundEnabled] = useState(settings.soundEnabled);
-  const [autoSleepMinutes, setAutoSleepMinutes] = useState(settings.autoSleepMinutes);
-  const [pinInput, setPinInput] = useState(settings.privacyPin || '');
+export const SettingsModal: React.FC = () => {
+  const {
+    isSettingsOpen,
+    setSettingsOpen,
+    settings,
+    setTheme,
+    updateSettings,
+    setDefaultZoom,
+  } = useApp();
+
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [userDataPath, setUserDataPath] = useState('');
-  const [isSavedPin, setIsSavedPin] = useState(false);
+  const [pinInput, setPinInput] = useState(settings.privacyPin || '');
+  const [pinSavedFeedback, setPinSavedFeedback] = useState(false);
+  const [copiedPath, setCopiedPath] = useState(false);
 
   useEffect(() => {
     platform.getUserDataPath().then(setUserDataPath).catch(() => {});
@@ -34,39 +45,37 @@ export const SettingsModal: React.FC = () => {
   if (!isSettingsOpen) return null;
 
   const isNoir = settings.theme === 'noir';
+  const currentZoom = settings.defaultZoom || 1.0;
 
   const handleSavePin = () => {
-    // Save pin
-    const saved = localStorage.getItem('chatty_settings_v1');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      parsed.privacyPin = pinInput;
-      localStorage.setItem('chatty_settings_v1', JSON.stringify(parsed));
-    }
-    setIsSavedPin(true);
-    setTimeout(() => setIsSavedPin(false), 2000);
+    updateSettings({ privacyPin: pinInput });
+    setPinSavedFeedback(true);
+    setTimeout(() => setPinSavedFeedback(false), 2000);
   };
 
-  const handleToggleSound = () => {
-    const next = !soundEnabled;
-    setSoundEnabled(next);
-    const saved = localStorage.getItem('chatty_settings_v1');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      parsed.soundEnabled = next;
-      localStorage.setItem('chatty_settings_v1', JSON.stringify(parsed));
+  const handleCopyPath = () => {
+    if (userDataPath) {
+      navigator.clipboard.writeText(userDataPath);
+      setCopiedPath(true);
+      setTimeout(() => setCopiedPath(false), 2000);
     }
   };
 
-  const handleChangeAutoSleep = (mins: number) => {
-    setAutoSleepMinutes(mins);
-    const saved = localStorage.getItem('chatty_settings_v1');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      parsed.autoSleepMinutes = mins;
-      localStorage.setItem('chatty_settings_v1', JSON.stringify(parsed));
-    }
-  };
+  const zoomOptions = [
+    { label: '90%', value: 0.9 },
+    { label: '100%', value: 1.0 },
+    { label: '110%', value: 1.1 },
+    { label: '125%', value: 1.25 },
+    { label: '140%', value: 1.4 },
+  ];
+
+  const sleepOptions = [
+    { label: '5 min', value: 5 },
+    { label: '15 min', value: 15 },
+    { label: '30 min', value: 30 },
+    { label: '1 hour', value: 60 },
+    { label: 'Never', value: 0 },
+  ];
 
   return (
     <div
@@ -74,206 +83,433 @@ export const SettingsModal: React.FC = () => {
       onClick={() => setSettingsOpen(false)}
     >
       <div
-        className={`w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border flex flex-col max-h-[85vh] transition-all animate-slide-up ${
+        className={`w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden border flex flex-col max-h-[85vh] transition-all animate-slide-up select-none ${
           isNoir
-            ? 'bg-[#161824] border-zinc-700/80 text-zinc-100'
-            : 'bg-white/95 border-white/90 text-zinc-800 backdrop-blur-2xl'
+            ? 'bg-[#181A24] border-zinc-700/80 text-zinc-100'
+            : 'bg-[#F6F6F8] border-zinc-300/80 text-zinc-800'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-inherit">
-          <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 flex items-center justify-center shadow-xs">
-              <Palette className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-base">Preferences & Themes</h2>
-              <p className="text-xs text-zinc-400">Personalize Chatty's pastel aesthetics & memory saver</p>
-            </div>
+        {/* macOS Native Titlebar */}
+        <div
+          className={`h-12 w-full flex items-center justify-between px-5 border-b shrink-0 titlebar-drag ${
+            isNoir ? 'bg-[#151722] border-zinc-800' : 'bg-[#EAEAEF] border-zinc-300/70'
+          }`}
+        >
+          <div className="flex items-center space-x-2">
+            <Sliders className="w-4 h-4 text-purple-500" />
+            <h2 className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">
+              System Settings
+            </h2>
+          </div>
+
+          {/* Tab Selector (macOS Segmented Control) */}
+          <div className="flex items-center p-1 rounded-lg bg-black/5 dark:bg-white/10 titlebar-no-drag">
+            <button
+              onClick={() => setActiveTab('general')}
+              className={`px-3 py-1 rounded-md text-[12px] font-medium transition-all ${
+                activeTab === 'general'
+                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs'
+                  : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+              }`}
+            >
+              General & Appearance
+            </button>
+            <button
+              onClick={() => setActiveTab('memory')}
+              className={`px-3 py-1 rounded-md text-[12px] font-medium transition-all ${
+                activeTab === 'memory'
+                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs'
+                  : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+              }`}
+            >
+              RAM Saver
+            </button>
+            <button
+              onClick={() => setActiveTab('privacy')}
+              className={`px-3 py-1 rounded-md text-[12px] font-medium transition-all ${
+                activeTab === 'privacy'
+                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs'
+                  : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+              }`}
+            >
+              Privacy & Data
+            </button>
+            <button
+              onClick={() => setActiveTab('shortcuts')}
+              className={`px-3 py-1 rounded-md text-[12px] font-medium transition-all ${
+                activeTab === 'shortcuts'
+                  ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-xs'
+                  : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+              }`}
+            >
+              Shortcuts
+            </button>
           </div>
 
           <button
             onClick={() => setSettingsOpen(false)}
-            className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-zinc-400 hover:text-zinc-600 transition-colors"
+            className="titlebar-no-drag p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-zinc-400 hover:text-zinc-600 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Content */}
+        {/* Settings Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Section 1: Pastel Theme Palette */}
-          <div>
-            <div className="flex items-center space-x-2 mb-3">
-              <Palette className="w-4 h-4 text-purple-500" />
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                Signature Pastel Themes
-              </h3>
-            </div>
+          {/* TAB 1: GENERAL & APPEARANCE */}
+          {activeTab === 'general' && (
+            <div className="space-y-6 animate-fade-in">
+              {/* Group 1: Chat Font Size & Display Scaling */}
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-3 mb-2">
+                  Display & Typography
+                </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {Object.values(THEMES).map((thm) => {
-                const isSelected = settings.theme === thm.id;
-                return (
-                  <div
-                    key={thm.id}
-                    onClick={() => setTheme(thm.id as ThemeId)}
-                    className={`p-3.5 rounded-2xl border cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${
-                      isSelected
-                        ? 'ring-2 ring-purple-500 border-purple-500/50 shadow-md'
-                        : 'border-zinc-200 dark:border-zinc-700/60 hover:border-zinc-300'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-lg">{thm.emoji}</span>
-                      {isSelected && <Check className="w-4 h-4 text-purple-600" />}
+                <div
+                  className={`rounded-xl border p-4 shadow-xs ${
+                    isNoir
+                      ? 'bg-[#1E202E] border-zinc-700/80'
+                      : 'bg-white border-zinc-200/80'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 rounded-lg bg-blue-500 text-white flex items-center justify-center shadow-xs">
+                        <ZoomIn className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-[13px] font-medium text-zinc-800 dark:text-zinc-100">
+                          Chat & Web Font Scaling
+                        </div>
+                        <div className="text-[12px] text-zinc-500 dark:text-zinc-400">
+                          Adjust default text readability for WhatsApp, Slack, and Telegram
+                        </div>
+                      </div>
                     </div>
-                    <div className="font-semibold text-xs mb-1">{thm.name}</div>
-                    <div className="flex items-center space-x-1.5 mt-2">
-                      {thm.previewColors.map((col, idx) => (
-                        <div
-                          key={idx}
-                          className="w-3.5 h-3.5 rounded-full border border-black/10 shadow-xs"
-                          style={{ backgroundColor: col }}
-                        />
+
+                    {/* Segmented Control for Zoom */}
+                    <div className="flex items-center p-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700">
+                      {zoomOptions.map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => setDefaultZoom(opt.value)}
+                          className={`px-2.5 py-1 rounded-md text-[12px] font-medium transition-all ${
+                            currentZoom === opt.value
+                              ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 shadow-xs font-semibold'
+                              : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
                       ))}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
 
-          {/* Section 2: Audio & RAM Saver */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Audio Feedback */}
-            <div className="p-4 rounded-2xl border border-inherit bg-black/[0.02] dark:bg-white/[0.02] flex flex-col justify-between">
-              <div>
-                <div className="flex items-center space-x-2 mb-1">
-                  {soundEnabled ? (
-                    <Volume2 className="w-4 h-4 text-emerald-500" />
-                  ) : (
-                    <VolumeX className="w-4 h-4 text-zinc-400" />
-                  )}
-                  <span className="text-xs font-semibold">Tactile Audio Feedback</span>
+                  <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-700/60 flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-xs">
+                        {settings.soundEnabled ? (
+                          <Volume2 className="w-4 h-4" />
+                        ) : (
+                          <VolumeX className="w-4 h-4" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-[13px] font-medium text-zinc-800 dark:text-zinc-100">
+                          Tactile Sound Feedback
+                        </div>
+                        <div className="text-[12px] text-zinc-500 dark:text-zinc-400">
+                          Play gentle organic chimes on tab switching and UI interactions
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => updateSettings({ soundEnabled: !settings.soundEnabled })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                        settings.soundEnabled ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition-transform ${
+                          settings.soundEnabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
-                <p className="text-[11px] text-zinc-400">
-                  Subtle organic chimes synthesized via Web Audio API on clicks and tabs
-                </p>
               </div>
 
-              <div className="mt-3 flex items-center justify-between">
-                <span className="text-xs">{soundEnabled ? 'Enabled' : 'Muted'}</span>
-                <button
-                  onClick={handleToggleSound}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
-                    soundEnabled
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                      : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300'
+              {/* Group 2: Signature Pastel Themes */}
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-3 mb-2">
+                  Signature Pastel Themes
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {Object.values(THEMES).map((thm) => {
+                    const isSelected = settings.theme === thm.id;
+                    return (
+                      <div
+                        key={thm.id}
+                        onClick={() => setTheme(thm.id as ThemeId)}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition-all duration-150 hover:scale-[1.01] active:scale-[0.99] ${
+                          isSelected
+                            ? 'ring-2 ring-purple-500 border-purple-500/50 bg-white dark:bg-zinc-800 shadow-sm'
+                            : isNoir
+                            ? 'bg-[#1E202E] border-zinc-700/70 hover:border-zinc-600'
+                            : 'bg-white border-zinc-200/80 hover:border-zinc-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xl">{thm.emoji}</span>
+                          {isSelected && <Check className="w-4 h-4 text-purple-600 dark:text-purple-400" />}
+                        </div>
+                        <div className="font-semibold text-[13px] text-zinc-800 dark:text-zinc-100 mb-0.5">
+                          {thm.name}
+                        </div>
+                        <p className="text-[11px] text-zinc-400 line-clamp-1 leading-tight mb-2.5">
+                          {thm.tagline}
+                        </p>
+                        <div className="flex items-center space-x-1.5">
+                          {thm.previewColors.map((col, idx) => (
+                            <div
+                              key={idx}
+                              className="w-3.5 h-3.5 rounded-full border border-black/10 shadow-2xs"
+                              style={{ backgroundColor: col }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: RAM SAVER */}
+          {activeTab === 'memory' && (
+            <div className="space-y-6 animate-fade-in">
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-3 mb-2">
+                  Memory Efficiency & Tab Hibernation
+                </div>
+
+                <div
+                  className={`rounded-xl border p-4 shadow-xs space-y-4 ${
+                    isNoir
+                      ? 'bg-[#1E202E] border-zinc-700/80'
+                      : 'bg-white border-zinc-200/80'
                   }`}
                 >
-                  Toggle
-                </button>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                        <Zap className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-[13px] font-medium text-zinc-800 dark:text-zinc-100">
+                          Auto-Hibernate Inactive Tabs
+                        </div>
+                        <div className="text-[12px] text-zinc-500 dark:text-zinc-400">
+                          Suspends background chat webviews to release RAM back to macOS
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center p-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700">
+                      {sleepOptions.map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => updateSettings({ autoSleepMinutes: opt.value })}
+                          className={`px-2.5 py-1 rounded-md text-[12px] font-medium transition-all ${
+                            settings.autoSleepMinutes === opt.value
+                              ? 'bg-white dark:bg-zinc-700 text-amber-600 dark:text-amber-400 shadow-xs font-semibold'
+                              : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-zinc-100 dark:border-zinc-700/60 flex items-center justify-between">
+                    <div>
+                      <div className="text-[13px] font-medium text-zinc-800 dark:text-zinc-100">
+                        Sidebar Live RAM Badge
+                      </div>
+                      <div className="text-[12px] text-zinc-500 dark:text-zinc-400">
+                        Displays real-time app memory consumption in the bottom sidebar
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => updateSettings({ showRamMonitor: !settings.showRamMonitor })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                        settings.showRamMonitor ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition-transform ${
+                          settings.showRamMonitor ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
+          )}
 
-            {/* RAM Auto-Sleep */}
-            <div className="p-4 rounded-2xl border border-inherit bg-black/[0.02] dark:bg-white/[0.02] flex flex-col justify-between">
+          {/* TAB 3: PRIVACY & DATA */}
+          {activeTab === 'privacy' && (
+            <div className="space-y-6 animate-fade-in">
               <div>
-                <div className="flex items-center space-x-2 mb-1">
-                  <Zap className="w-4 h-4 text-amber-500" />
-                  <span className="text-xs font-semibold">Auto-Sleep Background Tabs</span>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-3 mb-2">
+                  Privacy & Screen Shield Lock
                 </div>
-                <p className="text-[11px] text-zinc-400">
-                  Hibernate idle tabs to keep Mac memory lean and CPU cool
-                </p>
-              </div>
 
-              <div className="mt-3 flex items-center space-x-1.5">
-                {[10, 15, 30, 0].map((mins) => (
-                  <button
-                    key={mins}
-                    onClick={() => handleChangeAutoSleep(mins)}
-                    className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
-                      autoSleepMinutes === mins
-                        ? 'bg-amber-500 text-white'
-                        : 'bg-black/5 dark:bg-white/5 hover:bg-black/10'
-                    }`}
-                  >
-                    {mins === 0 ? 'Never' : `${mins}m`}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Privacy Shield Lock PIN */}
-          <div className="p-4 rounded-2xl border border-inherit bg-black/[0.02] dark:bg-white/[0.02]">
-            <div className="flex items-center space-x-2 mb-1">
-              <Shield className="w-4 h-4 text-rose-500" />
-              <span className="text-xs font-semibold">Privacy Shield Lock (⌘L)</span>
-            </div>
-            <p className="text-[11px] text-zinc-400 mb-3">
-              Blur screen when away from keyboard. Optionally set a 4-digit PIN code.
-            </p>
-
-            <div className="flex items-center space-x-2 max-w-xs">
-              <input
-                type="password"
-                maxLength={8}
-                value={pinInput}
-                onChange={(e) => setPinInput(e.target.value)}
-                placeholder="Leave blank for click-to-unlock"
-                className="flex-1 px-3 py-1.5 rounded-xl text-xs border border-zinc-300 dark:border-zinc-700 bg-transparent outline-none focus:ring-2 focus:ring-purple-400 font-mono"
-              />
-              <button
-                onClick={handleSavePin}
-                className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-600 text-white shadow-xs hover:bg-purple-700 transition-colors"
-              >
-                {isSavedPin ? 'Saved!' : 'Save PIN'}
-              </button>
-            </div>
-          </div>
-
-          {/* Section 4: Keyboard Shortcuts Cheatsheet */}
-          <div>
-            <div className="flex items-center space-x-2 mb-3">
-              <Command className="w-4 h-4 text-zinc-400" />
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                Keyboard Shortcuts Cheatsheet
-              </h3>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              {[
-                { key: '⌘ 1 .. 9', desc: 'Jump to specific chat account' },
-                { key: '⌘ K', desc: 'Quick Switcher & Command Palette' },
-                { key: '⌘ S', desc: 'Toggle Side-by-Side Split View' },
-                { key: '⌘ L', desc: 'Lock Frosted Privacy Shield' },
-                { key: '⌘ D', desc: 'Toggle Focus / Do Not Disturb' },
-                { key: '⌘ N', desc: 'Add Service or WhatsApp Account' },
-                { key: '⌘ R', desc: 'Reload active chat session' },
-                { key: '⌘ ,', desc: 'Open Preferences & Themes' },
-              ].map((shortcut, idx) => (
                 <div
-                  key={idx}
-                  className="flex items-center justify-between p-2 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-inherit"
+                  className={`rounded-xl border p-4 shadow-xs space-y-4 ${
+                    isNoir
+                      ? 'bg-[#1E202E] border-zinc-700/80'
+                      : 'bg-white border-zinc-200/80'
+                  }`}
                 >
-                  <span className="text-zinc-500">{shortcut.desc}</span>
-                  <kbd className="px-1.5 py-0.5 rounded font-mono text-[10px] bg-black/5 dark:bg-white/10 font-semibold">
-                    {shortcut.key}
-                  </kbd>
-                </div>
-              ))}
-            </div>
-          </div>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start space-x-3">
+                      <div className="w-8 h-8 rounded-lg bg-rose-500 text-white flex items-center justify-center shadow-xs shrink-0 mt-0.5">
+                        <Shield className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-[13px] font-medium text-zinc-800 dark:text-zinc-100">
+                          Privacy Shield PIN (⌘L)
+                        </div>
+                        <div className="text-[12px] text-zinc-500 dark:text-zinc-400 max-w-sm mb-3">
+                          Instantly blurs the entire app when stepping away. Enter an optional numeric PIN to unlock.
+                        </div>
 
-          {/* Local-Only Storage Path */}
-          <div className="p-3 rounded-xl bg-black/5 dark:bg-white/5 border border-inherit flex items-center space-x-2 text-[11px] text-zinc-400">
-            <HardDrive className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-            <span className="truncate">Data location: {userDataPath || '~/Library/Application Support/Chatty'}</span>
-          </div>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="password"
+                            maxLength={8}
+                            value={pinInput}
+                            onChange={(e) => setPinInput(e.target.value)}
+                            placeholder="Leave empty for 1-click unlock"
+                            className="px-3 py-1.5 rounded-lg text-[13px] border border-zinc-300 dark:border-zinc-700 bg-transparent outline-none focus:ring-2 focus:ring-purple-400 font-mono w-56"
+                          />
+                          <button
+                            onClick={handleSavePin}
+                            className="px-3 py-1.5 rounded-lg text-[12px] font-medium bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition-colors"
+                          >
+                            {pinSavedFeedback ? 'Saved ✓' : 'Save PIN'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Local Storage Card */}
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-3 mb-2">
+                  Local-Only Data Architecture
+                </div>
+
+                <div
+                  className={`rounded-xl border p-4 shadow-xs space-y-3 ${
+                    isNoir
+                      ? 'bg-[#1E202E] border-zinc-700/80'
+                      : 'bg-white border-zinc-200/80'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-500 text-white flex items-center justify-center shadow-xs">
+                      <HardDrive className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-[13px] font-medium text-zinc-800 dark:text-zinc-100">
+                        Strictly Local Persistence
+                      </div>
+                      <div className="text-[12px] text-zinc-500 dark:text-zinc-400">
+                        All cookies, sessions, and encrypted caches are stored exclusively on your Mac with zero cloud servers.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
+                    <span className="font-mono text-[11px] text-zinc-600 dark:text-zinc-300 truncate mr-2">
+                      {userDataPath || '~/Library/Application Support/Chatty'}
+                    </span>
+                    <button
+                      onClick={handleCopyPath}
+                      className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white dark:bg-zinc-700 hover:bg-zinc-50 border border-zinc-200 dark:border-zinc-600 text-zinc-700 dark:text-zinc-200 shrink-0"
+                    >
+                      {copiedPath ? 'Copied ✓' : 'Copy Path'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: KEYBOARD SHORTCUTS */}
+          {activeTab === 'shortcuts' && (
+            <div className="space-y-6 animate-fade-in">
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 px-3 mb-2">
+                  macOS Native Shortcuts
+                </div>
+
+                <div
+                  className={`rounded-xl border divide-y overflow-hidden shadow-xs ${
+                    isNoir
+                      ? 'bg-[#1E202E] border-zinc-700/80 divide-zinc-700/60'
+                      : 'bg-white border-zinc-200/80 divide-zinc-100'
+                  }`}
+                >
+                  {[
+                    { key: '⌘ 1 .. 9', desc: 'Switch instantly between chat accounts' },
+                    { key: '⌘ K', desc: 'Open Raycast / Spotlight Command Palette' },
+                    { key: '⌘ S', desc: 'Toggle Side-by-Side Split View' },
+                    { key: '⌘ L', desc: 'Lock Privacy Screen Shield' },
+                    { key: '⌘ D', desc: 'Toggle Focus Mode / Do Not Disturb' },
+                    { key: '⌘ N', desc: 'Add Service or another WhatsApp account' },
+                    { key: '⌘ R', desc: 'Reload active chat session' },
+                    { key: '⌘ ,', desc: 'Open Preferences & Settings' },
+                  ].map((shortcut, idx) => (
+                    <div key={idx} className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-[13px] text-zinc-700 dark:text-zinc-300">
+                        {shortcut.desc}
+                      </span>
+                      <kbd className="px-2 py-1 rounded-md font-mono text-[11px] bg-zinc-100 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 text-zinc-700 dark:text-zinc-200 font-semibold shadow-2xs">
+                        {shortcut.key}
+                      </kbd>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div
+          className={`px-6 py-3 border-t flex items-center justify-between shrink-0 text-[12px] text-zinc-500 ${
+            isNoir ? 'bg-[#151722] border-zinc-800' : 'bg-[#EAEAEF] border-zinc-300/70'
+          }`}
+        >
+          <span>Chatty for macOS • 100% Private & Local</span>
+          <button
+            onClick={() => setSettingsOpen(false)}
+            className="px-4 py-1.5 rounded-lg text-[13px] font-medium bg-zinc-900 dark:bg-white hover:bg-zinc-800 text-white dark:text-zinc-900 shadow-xs transition-colors"
+          >
+            Done
+          </button>
         </div>
       </div>
     </div>

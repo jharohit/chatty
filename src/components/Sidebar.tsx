@@ -101,7 +101,7 @@ export const Sidebar: React.FC = () => {
                 {/* Hibernation Badge (Sleep indicator) */}
                 {isHibernated && !isActive && (
                   <span
-                    className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-slate-400/90 text-white flex items-center justify-center text-[9px] font-bold shadow-sm"
+                    className="absolute -bottom-1 -right-1 w-4.5 h-4.5 rounded-full bg-slate-500 text-white flex items-center justify-center text-[10px] font-bold shadow-xs"
                     title="Tab sleeping (saving RAM)"
                   >
                     z
@@ -111,7 +111,7 @@ export const Sidebar: React.FC = () => {
                 {/* Account Pill indicator (Personal vs Work vs Business) */}
                 {service.accountLabel && (
                   <span
-                    className="absolute -bottom-1.5 px-1 py-[1px] rounded-full text-[8px] font-semibold tracking-tighter truncate max-w-[46px] border shadow-xs"
+                    className="absolute -bottom-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold tracking-normal truncate max-w-[54px] border shadow-2xs"
                     style={{
                       backgroundColor: isNoir ? '#202330' : '#FFFFFF',
                       color: service.accentColor || activeTheme.accent,
@@ -126,7 +126,7 @@ export const Sidebar: React.FC = () => {
               {/* Unread Counter Bubble */}
               {unread > 0 && (
                 <div className="absolute -top-1 -right-1 pointer-events-none">
-                  <span className="flex h-5 min-w-[20px] px-1.5 items-center justify-center rounded-full bg-rose-500 text-white text-[10px] font-bold shadow-md animate-spring-pop">
+                  <span className="flex h-5 min-w-[20px] px-1.5 items-center justify-center rounded-full bg-rose-500 text-white text-[11px] font-bold shadow-md animate-spring-pop">
                     {unread > 99 ? '99+' : unread}
                   </span>
                 </div>
@@ -134,13 +134,13 @@ export const Sidebar: React.FC = () => {
 
               {/* Hover Tooltip */}
               <div
-                className={`absolute left-16 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-50 shadow-lg ${
+                className={`absolute left-16 px-3 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-50 shadow-lg ${
                   isNoir ? 'bg-zinc-800 text-zinc-100 border border-zinc-700' : 'bg-white/95 text-zinc-800 border border-zinc-200/70 backdrop-blur-md'
                 }`}
               >
                 {service.name}
                 {service.accountLabel ? ` • ${service.accountLabel}` : ''}
-                {isHibernated && <span className="ml-1 text-slate-400 text-[10px]">(Sleeping)</span>}
+                {isHibernated && <span className="ml-1 text-slate-400 text-[11px]">(Sleeping)</span>}
               </div>
             </div>
           );
@@ -165,7 +165,7 @@ export const Sidebar: React.FC = () => {
         {/* Live RAM Monitor Widget */}
         <button
           onClick={() => setMemoryModalOpen(true)}
-          className={`group relative flex items-center justify-center p-1.5 rounded-xl text-xs transition-all duration-200 ${
+          className={`group relative flex items-center justify-center p-1.5 rounded-xl transition-all duration-200 ${
             isNoir
               ? 'hover:bg-zinc-800 text-emerald-400'
               : 'hover:bg-white/70 text-emerald-600'
@@ -174,7 +174,7 @@ export const Sidebar: React.FC = () => {
         >
           <div className="flex flex-col items-center">
             <Zap className="w-4 h-4 text-emerald-500 group-hover:animate-pulse" />
-            <span className="text-[9px] font-semibold mt-0.5 tracking-tighter">
+            <span className="text-[11px] font-mono font-bold mt-0.5">
               {memoryMB}M
             </span>
           </div>

@@ -51,4 +51,5 @@ export interface AppSettings {
   splitViewSecondaryId: string | null;
   splitRatio: number; // 30 to 70 percentage
   showRamMonitor: boolean;
+  defaultZoom?: number; // 0.9, 1.0, 1.1, 1.25, 1.3
 }

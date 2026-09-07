@@ -179,14 +179,14 @@ export const MemoryMonitorModal: React.FC = () => {
                       <ServiceIcon type={service.type} size={28} />
                       <div>
                         <div className="flex items-center space-x-2">
-                          <span className="text-xs font-semibold">{service.name}</span>
+                          <span className="text-[13.5px] font-medium text-zinc-900 dark:text-zinc-100">{service.name}</span>
                           {service.accountLabel && (
-                            <span className="px-1.5 py-0.2 rounded text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                            <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
                               {service.accountLabel}
                             </span>
                           )}
                         </div>
-                        <div className="text-[10px] text-zinc-400 truncate max-w-[220px]">
+                        <div className="text-[11px] font-mono text-zinc-400 truncate max-w-[220px]">
                           {service.partition}
                         </div>
                       </div>
@@ -194,15 +194,15 @@ export const MemoryMonitorModal: React.FC = () => {
 
                     <div className="flex items-center space-x-2">
                       {isActive ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                           Active
                         </span>
                       ) : isSleeping ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
                           Sleeping (RAM 0MB)
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
                           Awake
                         </span>
                       )}

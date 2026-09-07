@@ -42,6 +42,8 @@ interface AppContextType {
   setUnreadCount: (serviceId: string, count: number) => void;
   reloadActiveService: () => void;
   openExternalActiveService: () => void;
+  updateSettings: (partial: Partial<AppSettings>) => void;
+  setDefaultZoom: (zoom: number) => void;
 
   // Modals
   setCommandPaletteOpen: (open: boolean) => void;
@@ -375,6 +377,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [activeService]);
 
+  const updateSettings = useCallback((partial: Partial<AppSettings>) => {
+    setSettings((prev) => {
+      const next = { ...prev, ...partial };
+      try {
+        localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  const setDefaultZoom = useCallback(
+    (zoom: number) => {
+      updateSettings({ defaultZoom: zoom });
+      // Apply immediately to current service
+      if (activeServiceId) {
+        updateService(activeServiceId, { zoomFactor: zoom });
+        try {
+          const webview = document.getElementById(`webview-${activeServiceId}`) as any;
+          if (webview && typeof webview.setZoomFactor === 'function') {
+            webview.setZoomFactor(zoom);
+          }
+        } catch {}
+      }
+    },
+    [updateSettings, activeServiceId, updateService]
+  );
+
   return (
     <AppContext.Provider
       value={{
@@ -407,6 +436,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUnreadCount,
         reloadActiveService,
         openExternalActiveService,
+        updateSettings,
+        setDefaultZoom,
         setCommandPaletteOpen,
         setAddServiceOpen,
         setSettingsOpen,

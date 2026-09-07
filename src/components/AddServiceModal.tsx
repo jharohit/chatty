@@ -166,16 +166,16 @@ export const AddServiceModal: React.FC = () => {
                       <div className="flex items-center justify-between mb-2">
                         <ServiceIcon type={preset.type} size={32} />
                         {existingCount > 0 && (
-                          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
                             {existingCount} active
                           </span>
                         )}
                       </div>
                       <div>
-                        <div className="font-semibold text-xs text-zinc-900 dark:text-zinc-100">
+                        <div className="font-semibold text-[13.5px] text-zinc-900 dark:text-zinc-100">
                           {preset.name}
                         </div>
-                        <div className="text-[11px] text-zinc-400 mt-0.5 line-clamp-1">
+                        <div className="text-[12px] text-zinc-500 dark:text-zinc-400 mt-0.5 line-clamp-1">
                           {preset.description}
                         </div>
                       </div>
