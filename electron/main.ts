@@ -74,11 +74,24 @@ app.on('web-contents-created', (_event, contents) => {
   // Apply standard Chrome user agent
   contents.setUserAgent(CHROME_USER_AGENT);
 
-  // Enable microphone, camera, and notification permissions for chat calls
+  // Enable microphone, camera, notification, and persistent-storage permissions
   contents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
-    const allowedPermissions = ['media', 'geolocation', 'notifications', 'midi', 'camera', 'microphone'];
+    const allowedPermissions = [
+      'media',
+      'geolocation',
+      'notifications',
+      'midi',
+      'camera',
+      'microphone',
+      'persistent-storage',
+      'storage-access',
+      'clipboard-read',
+      'clipboard-sanitized-write',
+    ];
     callback(allowedPermissions.includes(permission));
   });
+
+  contents.session.setPermissionCheckHandler(() => true);
 
   // Handle new window / link clicks
   contents.setWindowOpenHandler(({ url }) => {
