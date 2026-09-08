@@ -6,7 +6,6 @@ export type ServiceType =
   | 'whatsapp'
   | 'whatsapp_business'
   | 'telegram'
-  | 'signal'
   | 'slack'
   | 'google_chat'
   | 'discord'

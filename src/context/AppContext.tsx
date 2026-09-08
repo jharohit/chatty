@@ -77,18 +77,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((s: Service) => {
-            if (
-              s.type === 'slack' &&
-              (s.url === 'https://app.slack.com/client' ||
-                s.url.includes('unsupported-browser') ||
-                s.url === 'https://slack.com/signin' ||
-                s.url.endsWith('/signin'))
-            ) {
-              return { ...s, url: 'https://slack.com/workspace-signin' };
-            }
-            return s;
-          });
+          return parsed
+            .filter((s: any) => s.type !== 'signal')
+            .map((s: Service) => {
+              if (
+                s.type === 'slack' &&
+                (s.url === 'https://app.slack.com/client' ||
+                  s.url.includes('unsupported-browser') ||
+                  s.url === 'https://slack.com/signin' ||
+                  s.url.endsWith('/signin'))
+              ) {
+                return { ...s, url: 'https://slack.com/workspace-signin' };
+              }
+              return s;
+            });
         }
       }
     } catch (e) {
@@ -478,7 +480,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return (
           s.type === 'whatsapp' ||
           s.type === 'telegram' ||
-          s.type === 'signal' ||
           s.type === 'messenger' ||
           s.type === 'discord'
         );
@@ -499,15 +500,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (id === 'work') {
             return s.type === 'slack' || s.type === 'google_chat' || s.type === 'whatsapp_business';
           }
-          if (id === 'personal') {
-            return (
-              s.type === 'whatsapp' ||
-              s.type === 'telegram' ||
-              s.type === 'signal' ||
-              s.type === 'messenger' ||
-              s.type === 'discord'
-            );
-          }
+            if (id === 'personal') {
+              return (
+                s.type === 'whatsapp' ||
+                s.type === 'telegram' ||
+                s.type === 'messenger' ||
+                s.type === 'discord'
+              );
+            }
           return false;
         });
         if (matching.length > 0 && !matching.some((s) => s.id === activeServiceId)) {

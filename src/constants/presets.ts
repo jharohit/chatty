@@ -134,16 +134,6 @@ export const SERVICE_PRESETS: ServicePreset[] = [
     supportsMultiple: true,
   },
   {
-    type: 'signal',
-    name: 'Signal Web',
-    description: 'Privacy-focused messaging',
-    defaultUrl: 'https://signal.org',
-    defaultColor: '#3A76F0',
-    badgeTag: 'Encrypted',
-    category: 'chat',
-    supportsMultiple: false,
-  },
-  {
     type: 'slack',
     name: 'Slack',
     description: 'Channels, team messaging & huddles',

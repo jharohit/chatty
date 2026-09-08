@@ -66,8 +66,10 @@
     "chat",
     "whatsapp",
     "telegram",
-    "signal",
     "slack",
+    "claude",
+    "chatgpt",
+    "ai",
     "macos",
     "electron",
     "pastel"

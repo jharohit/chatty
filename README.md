@@ -5,7 +5,7 @@
 # Chatty
 
 ### The Local-First, Privacy-Centric Multi-Chat & AI Workstation for macOS
-**Run WhatsApp, Slack, Telegram, Signal, Google Chat, Discord & Modern AI Assistants (Claude, ChatGPT, Gemini, Perplexity, Grok) side-by-side with zero cloud dependencies.**
+**Run WhatsApp, Slack, Telegram, Google Chat, Discord & Modern AI Assistants (Claude, ChatGPT, Gemini, Perplexity, Grok) side-by-side with zero cloud dependencies.**
 
 [![macOS](https://img.shields.io/badge/Platform-macOS%20%7C%20Apple%20Silicon%20&%20Intel-blueviolet?style=flat-square&logo=apple)](https://apple.com)
 [![Privacy](https://img.shields.io/badge/Privacy-100%25%20Local%20Only-emerald?style=flat-square&logo=shield)](https://github.com)

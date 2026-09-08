@@ -122,23 +122,6 @@ export const ServiceIcon: React.FC<ServiceIconProps> = ({
         </svg>
       );
 
-    case 'signal':
-      return (
-        <svg
-          style={iconStyle}
-          viewBox="0 0 32 32"
-          fill="none"
-          className={className}
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <circle cx="16" cy="16" r="16" fill="#3A76F0" />
-          <path
-            d="M16 8C11.6 8 8 11.4 8 15.6C8 17.6 8.8 19.4 10.1 20.8L9.5 23.8C9.4 24.3 9.9 24.7 10.3 24.5L13.7 23.3C14.4 23.6 15.2 23.7 16 23.7C20.4 23.7 24 20.3 24 16C24 11.6 20.4 8 16 8Z"
-            fill="white"
-          />
-        </svg>
-      );
-
     case 'discord':
       return (
         <svg
