@@ -1,4 +1,18 @@
-import { ServicePreset, ThemeId, Service } from '../types';
+import { ServicePreset, ThemeId, Service, WorkspaceId } from '../types';
+
+export interface WorkspaceConfig {
+  id: WorkspaceId;
+  name: string;
+  emoji: string;
+  description: string;
+}
+
+export const WORKSPACES: WorkspaceConfig[] = [
+  { id: 'all', name: 'All', emoji: '✨', description: 'All connected accounts & chats' },
+  { id: 'personal', name: 'Personal', emoji: '🏡', description: 'Personal chats, family & friends' },
+  { id: 'work', name: 'Work', emoji: '💼', description: 'Workspaces, Slack & clients' },
+  { id: 'ai', name: 'AI', emoji: '🪄', description: 'AI models and assistants' },
+];
 
 export interface ThemeConfig {
   id: ThemeId;
@@ -133,7 +147,7 @@ export const SERVICE_PRESETS: ServicePreset[] = [
     type: 'slack',
     name: 'Slack',
     description: 'Channels, team messaging & huddles',
-    defaultUrl: 'https://slack.com/signin',
+    defaultUrl: 'https://slack.com/workspace-signin',
     defaultColor: '#ECB22E',
     badgeTag: 'Team',
     category: 'work',
@@ -189,6 +203,36 @@ export const SERVICE_PRESETS: ServicePreset[] = [
     category: 'ai',
     supportsMultiple: true,
   },
+  {
+    type: 'gemini',
+    name: 'Gemini',
+    description: 'Google Gemini conversational AI',
+    defaultUrl: 'https://gemini.google.com',
+    defaultColor: '#1A73E8',
+    badgeTag: 'AI',
+    category: 'ai',
+    supportsMultiple: true,
+  },
+  {
+    type: 'perplexity',
+    name: 'Perplexity',
+    description: 'Perplexity AI search & discovery',
+    defaultUrl: 'https://www.perplexity.ai',
+    defaultColor: '#20B8CD',
+    badgeTag: 'AI',
+    category: 'ai',
+    supportsMultiple: true,
+  },
+  {
+    type: 'grok',
+    name: 'Grok',
+    description: 'xAI Grok conversational engine',
+    defaultUrl: 'https://grok.com',
+    defaultColor: '#1D9BF0',
+    badgeTag: 'AI',
+    category: 'ai',
+    supportsMultiple: true,
+  },
 ];
 
 export const INITIAL_SERVICES: Service[] = [
@@ -204,6 +248,7 @@ export const INITIAL_SERVICES: Service[] = [
     zoomFactor: 1.0,
     isHibernated: false,
     lastActive: Date.now(),
+    workspaceId: 'personal',
   },
   {
     id: 'wa-business',
@@ -217,6 +262,7 @@ export const INITIAL_SERVICES: Service[] = [
     zoomFactor: 1.0,
     isHibernated: true,
     lastActive: Date.now() - 3600000,
+    workspaceId: 'work',
   },
   {
     id: 'telegram-main',
@@ -230,12 +276,13 @@ export const INITIAL_SERVICES: Service[] = [
     zoomFactor: 1.0,
     isHibernated: true,
     lastActive: Date.now() - 7200000,
+    workspaceId: 'personal',
   },
   {
     id: 'slack-work',
     name: 'Slack',
     type: 'slack',
-    url: 'https://slack.com/signin',
+    url: 'https://slack.com/workspace-signin',
     partition: 'persist:service_slack_work',
     accountLabel: 'Work',
     accentColor: '#ECB22E',
@@ -243,5 +290,6 @@ export const INITIAL_SERVICES: Service[] = [
     zoomFactor: 1.0,
     isHibernated: true,
     lastActive: Date.now() - 10800000,
+    workspaceId: 'work',
   },
 ];

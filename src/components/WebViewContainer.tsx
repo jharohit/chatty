@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Service } from '../types';
 import { THEMES } from '../constants/presets';
 import { platform } from '../services/platform';
+import { sounds } from '../utils/sound';
 import { ServiceIcon } from './ServiceIcon';
 import { Play, BedDouble, Shield } from 'lucide-react';
 
@@ -14,6 +15,7 @@ export const WebViewContainer: React.FC = () => {
     settings,
     setUnreadCount,
     wakeService,
+    updateService,
     setSplitRatio,
   } = useApp();
 
@@ -49,11 +51,34 @@ export const WebViewContainer: React.FC = () => {
     return () => window.removeEventListener('chatty:reload-webview', handleReload);
   }, [activeServiceId]);
 
-  // Split view dragging
-  const [isDraggingSplit, setIsDraggingSplit] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Sync Presenter Mode (Screen-Share Shield) with all active webviews
+  useEffect(() => {
+    instantiatedIds.forEach((id) => {
+      try {
+        const wv = document.getElementById(`webview-${id}`) as any;
+        if (wv && typeof wv.send === 'function') {
+          wv.send('chatty-set-presenter-mode', settings.screenShareShield);
+        }
+      } catch {}
+    });
+  }, [settings.screenShareShield, instantiatedIds]);
 
-  const handleMouseDown = () => {
+  // Split view dragging with 60fps buttery-smooth local ratio and pointer shield
+  const [isDraggingSplit, setIsDraggingSplit] = useState(false);
+  const [liveRatio, setLiveRatio] = useState(settings.splitRatio || 50);
+  const latestRatioRef = useRef(settings.splitRatio || 50);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!isDraggingSplit) {
+      setLiveRatio(settings.splitRatio || 50);
+      latestRatioRef.current = settings.splitRatio || 50;
+    }
+  }, [settings.splitRatio, isDraggingSplit]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
     setIsDraggingSplit(true);
   };
 
@@ -63,22 +88,30 @@ export const WebViewContainer: React.FC = () => {
       const rect = containerRef.current.getBoundingClientRect();
       const offsetX = e.clientX - rect.left;
       const percentage = Math.min(Math.max((offsetX / rect.width) * 100, 20), 80);
-      setSplitRatio(Math.round(percentage));
+      latestRatioRef.current = percentage;
+
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        setLiveRatio(percentage);
+      });
     };
 
     const handleMouseUp = () => {
       if (isDraggingSplit) {
         setIsDraggingSplit(false);
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        setSplitRatio(Math.round(latestRatioRef.current));
       }
     };
 
     if (isDraggingSplit) {
-      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mousemove', handleMouseMove, { passive: true });
       window.addEventListener('mouseup', handleMouseUp);
     }
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [isDraggingSplit, setSplitRatio]);
 
@@ -87,7 +120,9 @@ export const WebViewContainer: React.FC = () => {
 
   // Render a single service panel
   const renderServicePane = (service: Service) => {
-    const isSleeping = service.isHibernated;
+    // Tab only fully unmounts if background notifications are disabled and the tab isn't marked neverSleep
+    const isSleeping =
+      service.isHibernated && !service.neverSleep && !settings.backgroundNotifications;
 
     return (
       <div
@@ -126,7 +161,7 @@ export const WebViewContainer: React.FC = () => {
                   e.stopPropagation();
                   wakeService(service.id);
                 }}
-                className="px-5 py-2.5 rounded-full text-xs font-semibold shadow-md flex items-center space-x-2 transition-transform hover:scale-105 active:scale-95"
+                className="px-5 py-2.5 rounded-full text-xs font-semibold shadow-md flex items-center space-x-2 transition-transform hover:scale-105 active:scale-95 cursor-pointer"
                 style={{
                   backgroundColor: service.accentColor || activeTheme.accent,
                   color: '#FFFFFF',
@@ -143,7 +178,10 @@ export const WebViewContainer: React.FC = () => {
             id: `webview-${service.id}`,
             src: service.url,
             partition: service.partition,
-            useragent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.76 Safari/537.36',
+            useragent:
+              service.type === 'gemini' || service.url.includes('google.com')
+                ? 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0) Gecko/20100101 Firefox/145.0'
+                : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.76 Safari/537.36',
             preload: (window as any).chattyAPI?.webviewPreloadPath,
             allowpopups: 'true',
             webpreferences: 'contextIsolation=true, spellcheck=true',
@@ -164,10 +202,42 @@ export const WebViewContainer: React.FC = () => {
                   }
                 });
 
+                // For Slack: remember active workspace URL once signed in without causing reactive reload loops
+                node.addEventListener('did-navigate', (e: any) => {
+                  try {
+                    const navUrl = e.url || '';
+                    if (
+                      service.type === 'slack' &&
+                      service.url.includes('signin') &&
+                      navUrl.includes('app.slack.com')
+                    ) {
+                      updateService(service.id, { url: navUrl });
+                    }
+                  } catch {}
+                });
+
+                // Gracefully ignore normal Chromium non-fatal ERR_ABORTED (-3)
+                node.addEventListener('did-fail-load', (e: any) => {
+                  if (e.errorCode === -3) return;
+                });
+
                 // IPC messages from webview-preload
                 node.addEventListener('ipc-message', (e: any) => {
                   if (e.channel === 'unread-count') {
                     setUnreadCount(service.id, e.args[0] || 0);
+                  } else if (e.channel === 'chatty-notification') {
+                    const data = e.args[0] || {};
+                    // If service is muted or Focus Mode is on, suppress sound and native banner
+                    if (!service.isMuted && !settings.focusMode) {
+                      if (settings.soundEnabled) {
+                        sounds.playNotification();
+                      }
+                      platform.showNotification({
+                        title: data.title ? `${data.title} (${service.name})` : service.name,
+                        body: data.body || 'New message received',
+                        serviceId: service.id,
+                      });
+                    }
                   }
                 });
 
@@ -179,6 +249,9 @@ export const WebViewContainer: React.FC = () => {
                     }
                     if (service.isMuted && typeof node.setAudioMuted === 'function') {
                       node.setAudioMuted(true);
+                    }
+                    if (typeof node.send === 'function') {
+                      node.send('chatty-set-presenter-mode', settings.screenShareShield);
                     }
                   } catch (err) {
                     console.warn('Could not set initial webview properties:', err);
@@ -219,11 +292,18 @@ export const WebViewContainer: React.FC = () => {
     <div ref={containerRef} className="relative flex-1 w-full h-full overflow-hidden flex">
       {settings.splitViewEnabled && secondaryService ? (
         /* Dual Split-Screen View */
-        <div className="w-full h-full flex flex-row">
+        <div className="w-full h-full flex flex-row relative">
+          {/* Fullscreen transparent drag shield so webview can never intercept mouse events during drag */}
+          {isDraggingSplit && (
+            <div className="fixed inset-0 z-50 cursor-col-resize select-none bg-transparent" />
+          )}
+
           {/* Left Pane */}
           <div
-            className="h-full relative overflow-hidden"
-            style={{ width: `${settings.splitRatio}%` }}
+            className={`h-full relative overflow-hidden ${
+              isDraggingSplit ? 'pointer-events-none select-none' : ''
+            }`}
+            style={{ width: `${liveRatio}%` }}
           >
             {primaryService && renderServicePane(primaryService)}
           </div>
@@ -231,23 +311,28 @@ export const WebViewContainer: React.FC = () => {
           {/* Draggable Divider */}
           <div
             onMouseDown={handleMouseDown}
-            onDoubleClick={() => setSplitRatio(50)}
-            className={`w-1.5 h-full cursor-col-resize flex items-center justify-center transition-colors z-20 ${
+            onDoubleClick={() => {
+              setLiveRatio(50);
+              setSplitRatio(50);
+            }}
+            className={`w-2 h-full cursor-col-resize flex items-center justify-center transition-colors z-30 shrink-0 ${
               isDraggingSplit
-                ? 'bg-purple-500'
+                ? 'bg-purple-600'
                 : isNoir
-                ? 'bg-zinc-800 hover:bg-zinc-600'
-                : 'bg-zinc-200 hover:bg-purple-300'
+                ? 'bg-zinc-800 hover:bg-purple-500/80'
+                : 'bg-zinc-200/80 hover:bg-purple-400'
             }`}
-            title="Drag to resize split view (Double click to reset 50/50)"
+            title="Drag to resize (Double-click to reset 50:50)"
           >
-            <div className="w-0.5 h-8 bg-white/60 rounded-full" />
+            <div className="w-1 h-10 bg-white/80 rounded-full shadow-xs" />
           </div>
 
           {/* Right Pane */}
           <div
-            className="h-full relative overflow-hidden"
-            style={{ width: `${100 - settings.splitRatio}%` }}
+            className={`h-full relative overflow-hidden ${
+              isDraggingSplit ? 'pointer-events-none select-none' : ''
+            }`}
+            style={{ width: `${100 - liveRatio}%` }}
           >
             {secondaryService && renderServicePane(secondaryService)}
           </div>
@@ -270,6 +355,14 @@ export const WebViewContainer: React.FC = () => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Screen-Sharing Presenter Shield Indicator Badge */}
+      {settings.screenShareShield && (
+        <div className="absolute bottom-3 right-4 z-30 flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-emerald-600/90 text-white text-[11px] font-semibold shadow-lg backdrop-blur-md animate-fade-in pointer-events-none">
+          <Shield className="w-3.5 h-3.5" />
+          <span>Presenter Shield Active (Hover to reveal)</span>
         </div>
       )}
     </div>

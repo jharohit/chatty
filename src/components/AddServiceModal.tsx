@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { SERVICE_PRESETS, THEMES } from '../constants/presets';
-import { ServicePreset } from '../types';
+import { ServicePreset, WorkspaceId } from '../types';
 import { ServiceIcon } from './ServiceIcon';
-import { X, Plus, Sparkles, ShieldCheck, Globe, Check } from 'lucide-react';
+import { X, Plus, Sparkles, ShieldCheck, Globe, Check, Trash2 } from 'lucide-react';
 
 const PASTEL_COLORS = [
   '#25D366', // WhatsApp green
@@ -19,9 +19,16 @@ const PASTEL_COLORS = [
 ];
 
 export const AddServiceModal: React.FC = () => {
-  const { isAddServiceOpen, setAddServiceOpen, addService, services, settings } = useApp();
+  const {
+    isAddServiceOpen,
+    setAddServiceOpen,
+    addService,
+    removeService,
+    services,
+    settings,
+  } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'presets' | 'custom'>('presets');
+  const [activeTab, setActiveTab] = useState<'presets' | 'custom' | 'manage'>('presets');
   const [selectedPreset, setSelectedPreset] = useState<ServicePreset | null>(null);
 
   // Form states
@@ -29,6 +36,7 @@ export const AddServiceModal: React.FC = () => {
   const [customName, setCustomName] = useState('');
   const [customUrl, setCustomUrl] = useState('');
   const [selectedColor, setSelectedColor] = useState(PASTEL_COLORS[0]);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<WorkspaceId>('personal');
 
   if (!isAddServiceOpen) return null;
 
@@ -37,7 +45,6 @@ export const AddServiceModal: React.FC = () => {
   const handleSelectPreset = (preset: ServicePreset) => {
     setSelectedPreset(preset);
     setCustomName(preset.name);
-    // Count existing accounts of this type to suggest e.g. "Account 2" or "Work"
     const existingCount = services.filter((s) => s.type === preset.type).length;
     if (existingCount === 0) {
       setAccountLabel(preset.badgeTag || 'Primary');
@@ -45,11 +52,21 @@ export const AddServiceModal: React.FC = () => {
       setAccountLabel(`Account ${existingCount + 1}`);
     }
     setSelectedColor(preset.defaultColor || PASTEL_COLORS[0]);
+    setSelectedWorkspace(
+      preset.category === 'work' ? 'work' : preset.category === 'ai' ? 'ai' : 'personal'
+    );
   };
 
   const handleConfirmAdd = () => {
     if (activeTab === 'presets' && selectedPreset) {
-      addService(selectedPreset, customName, undefined, accountLabel, selectedColor);
+      addService(
+        selectedPreset,
+        customName,
+        undefined,
+        accountLabel,
+        selectedColor,
+        selectedWorkspace
+      );
     } else if (activeTab === 'custom' && customUrl) {
       let finalUrl = customUrl.trim();
       if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
@@ -61,10 +78,17 @@ export const AddServiceModal: React.FC = () => {
         description: 'User-added web service',
         defaultUrl: finalUrl,
         defaultColor: selectedColor,
-        category: 'chat',
+        category: selectedWorkspace === 'work' ? 'work' : selectedWorkspace === 'ai' ? 'ai' : 'chat',
         supportsMultiple: true,
       };
-      addService(customPreset, customName || 'Custom App', finalUrl, accountLabel || 'Custom', selectedColor);
+      addService(
+        customPreset,
+        customName || 'Custom App',
+        finalUrl,
+        accountLabel || 'Custom',
+        selectedColor,
+        selectedWorkspace
+      );
     }
 
     setAddServiceOpen(false);
@@ -133,6 +157,19 @@ export const AddServiceModal: React.FC = () => {
             }`}
           >
             Add Any Custom URL
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('manage');
+              setSelectedPreset(null);
+            }}
+            className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
+              activeTab === 'manage'
+                ? 'bg-purple-600 text-white shadow-sm'
+                : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+            }`}
+          >
+            Manage Active Apps ({services.length})
           </button>
         </div>
 
@@ -249,9 +286,36 @@ export const AddServiceModal: React.FC = () => {
                     ))}
                   </div>
                 </div>
+
+                {/* Workspace Assignment */}
+                <div>
+                  <label className="block text-xs font-medium text-zinc-500 mb-1">
+                    Assign to Workspace
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'personal' as WorkspaceId, label: '🏡 Personal' },
+                      { id: 'work' as WorkspaceId, label: '💼 Work' },
+                      { id: 'ai' as WorkspaceId, label: '🪄 AI' },
+                    ].map((ws) => (
+                      <button
+                        key={ws.id}
+                        type="button"
+                        onClick={() => setSelectedWorkspace(ws.id)}
+                        className={`py-1.5 px-2 rounded-xl text-xs font-medium border transition-all ${
+                          selectedWorkspace === ws.id
+                            ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-400 font-semibold'
+                            : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-black/5 dark:hover:bg-white/5'
+                        }`}
+                      >
+                        {ws.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )
-          ) : (
+          ) : activeTab === 'custom' ? (
             /* Custom URL Tab */
             <div className="space-y-4 animate-fade-in">
               <div>
@@ -317,6 +381,66 @@ export const AddServiceModal: React.FC = () => {
                 </div>
               </div>
             </div>
+          ) : (
+            /* Manage / Remove Apps Tab */
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-sm">Installed Apps & Accounts</h3>
+                  <p className="text-xs text-zinc-400">
+                    Safely remove accounts from your sidebar without accidental clicks
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-600 dark:text-purple-400">
+                  {services.length} active
+                </span>
+              </div>
+
+              <div className="divide-y divide-zinc-200 dark:divide-zinc-800 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+                {services.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex items-center justify-between p-3.5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div
+                        className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-xs"
+                        style={{ backgroundColor: (s.accentColor || '#8B5CF6') + '20' }}
+                      >
+                        <ServiceIcon type={s.type} size={30} url={s.url} />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-xs flex items-center space-x-2">
+                          <span>{s.name}</span>
+                          {s.accountLabel && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/5 dark:bg-white/10">
+                              {s.accountLabel}
+                            </span>
+                          )}
+                          {s.workspaceId && (
+                            <span className="px-2 py-0.5 rounded-full text-[9.5px] uppercase tracking-wider font-semibold bg-purple-500/15 text-purple-600 dark:text-purple-400">
+                              {s.workspaceId}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-zinc-400 truncate max-w-xs mt-0.5">
+                          {s.url}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => removeService(s.id)}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 flex items-center space-x-1.5 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                      title={`Remove ${s.name} from sidebar`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Remove</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
 
@@ -324,20 +448,27 @@ export const AddServiceModal: React.FC = () => {
         <div className="flex items-center justify-end px-6 py-4 border-t border-inherit space-x-3">
           <button
             onClick={() => setAddServiceOpen(false)}
-            className="px-4 py-2 rounded-full text-xs font-medium hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+            className="px-4 py-2 rounded-full text-xs font-medium hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer text-zinc-600 dark:text-zinc-300"
           >
             Cancel
           </button>
 
-          {(selectedPreset || activeTab === 'custom') && (
+          {activeTab === 'manage' ? (
+            <button
+              onClick={() => setAddServiceOpen(false)}
+              className="px-6 py-2 rounded-full text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white shadow-md transition-all hover:scale-105 active:scale-95 cursor-pointer"
+            >
+              Save & Done
+            </button>
+          ) : (selectedPreset || activeTab === 'custom') ? (
             <button
               onClick={handleConfirmAdd}
               disabled={activeTab === 'custom' && !customUrl}
-              className="px-6 py-2 rounded-full text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white shadow-md disabled:opacity-50 transition-all hover:scale-105 active:scale-95"
+              className="px-6 py-2 rounded-full text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white shadow-md disabled:opacity-50 transition-all hover:scale-105 active:scale-95 cursor-pointer"
             >
               Add to Chatty
             </button>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

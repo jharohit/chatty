@@ -1,0 +1,125 @@
+import React from 'react';
+
+interface ChattyLogoProps {
+  className?: string;
+  size?: number;
+}
+
+export const ChattyLogo: React.FC<ChattyLogoProps> = ({ className = 'w-6 h-6', size = 24 }) => {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 512 512"
+      width={size}
+      height={size}
+      className={className}
+      style={{ width: size, height: size, minWidth: size, minHeight: size }}
+    >
+      {/* Outer Floating Coral/Red Circles */}
+      <circle cx="442" cy="98" r="22" fill="#FF6B6B" stroke="#1E2333" strokeWidth="14" />
+      <circle cx="72" cy="386" r="22" fill="#FF6B6B" stroke="#1E2333" strokeWidth="14" />
+
+      {/* Outer Floating Black Dots */}
+      <circle cx="70" cy="58" r="8" fill="#1E2333" />
+      <circle cx="94" cy="270" r="8" fill="#1E2333" />
+      <circle cx="54" cy="330" r="8" fill="#1E2333" />
+      <circle cx="94" cy="452" r="8" fill="#1E2333" />
+      <circle cx="444" cy="172" r="8" fill="#1E2333" />
+      <circle cx="444" cy="380" r="8" fill="#1E2333" />
+
+      {/* Phone Body */}
+      <rect
+        x="126"
+        y="24"
+        width="260"
+        height="464"
+        rx="46"
+        fill="#4B5675"
+        stroke="#1E2333"
+        strokeWidth="16"
+        strokeLinejoin="round"
+      />
+
+      {/* Speaker Grill / Camera */}
+      <rect x="238" y="52" width="36" height="10" rx="5" fill="#1E2333" />
+
+      {/* Phone Screen */}
+      <rect
+        x="134"
+        y="80"
+        width="244"
+        height="330"
+        rx="14"
+        fill="#EBF3FA"
+        stroke="#1E2333"
+        strokeWidth="16"
+        strokeLinejoin="round"
+      />
+
+      {/* Home Button */}
+      <circle cx="256" cy="450" r="18" fill="#FF6B6B" stroke="#1E2333" strokeWidth="14" />
+
+      {/* Screen Header Text Lines (Top Right) */}
+      <rect x="246" y="116" width="112" height="8" rx="4" fill="#1E2333" />
+      <rect x="246" y="142" width="112" height="8" rx="4" fill="#1E2333" />
+      <rect x="246" y="168" width="112" height="8" rx="4" fill="#1E2333" />
+      <rect x="246" y="194" width="86" height="8" rx="4" fill="#1E2333" />
+
+      {/* Cyan Square (App/Content Card) */}
+      <rect
+        x="162"
+        y="296"
+        width="84"
+        height="84"
+        rx="10"
+        fill="#42D2F1"
+        stroke="#1E2333"
+        strokeWidth="15"
+        strokeLinejoin="round"
+      />
+
+      {/* Green Chat Bubble (Left) */}
+      <path
+        d="M 80 120
+           H 178
+           A 24 24 0 0 1 202 144
+           V 194
+           L 204 262
+           L 168 224
+           H 78
+           A 24 24 0 0 1 54 200
+           V 144
+           A 24 24 0 0 1 78 120 Z"
+        fill="#2ECC71"
+        stroke="#1E2333"
+        strokeWidth="16"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+
+      {/* Green Chat Bubble Text Lines */}
+      <rect x="78" y="146" width="46" height="8" rx="4" fill="#1E2333" />
+      <rect x="78" y="172" width="104" height="8" rx="4" fill="#1E2333" />
+      <rect x="78" y="198" width="78" height="8" rx="4" fill="#1E2333" />
+
+      {/* Yellow Chat Bubble (Right) */}
+      <path
+        d="M 334 234
+           H 438
+           A 24 24 0 0 1 462 258
+           V 318
+           A 24 24 0 0 1 438 342
+           H 352
+           L 312 374
+           L 312 334
+           V 258
+           A 24 24 0 0 1 336 234 Z"
+        fill="#FFD233"
+        stroke="#1E2333"
+        strokeWidth="16"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+};

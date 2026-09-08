@@ -1,32 +1,47 @@
 import { ipcRenderer } from 'electron';
 
-// Spoof navigator properties to ensure Slack, WhatsApp, and Google Chat treat webviews as vanilla Chrome
-try {
-  const CHROME_UA =
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.76 Safari/537.36';
+const isGoogleDomain =
+  window.location.hostname.includes('google.com') ||
+  window.location.hostname.includes('google.co');
 
-  Object.defineProperty(navigator, 'userAgent', {
-    get: () => CHROME_UA,
-    configurable: false,
-  });
+// Intercept Web Notification API only for chat services (WhatsApp, Slack, Telegram)
+// Do NOT override on Google Accounts as Botguard checks Notification.requestPermission.toString()
+if (!isGoogleDomain) {
+  class ChattyNotification extends EventTarget {
+    static get permission() {
+      return 'granted';
+    }
 
-  Object.defineProperty(navigator, 'appVersion', {
-    get: () => '5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.76 Safari/537.36',
-    configurable: false,
-  });
+    static requestPermission(callback?: (permission: string) => void) {
+      if (callback) callback('granted');
+      return Promise.resolve('granted');
+    }
 
-  if ((navigator as any).userAgentData) {
-    const brands = [
-      { brand: 'Google Chrome', version: '152' },
-      { brand: 'Chromium', version: '152' },
-      { brand: 'Not_A Brand', version: '24' },
-    ];
-    Object.defineProperty((navigator as any).userAgentData, 'brands', {
-      get: () => brands,
-      configurable: false,
-    });
+    title: string;
+    options?: NotificationOptions;
+
+    constructor(title: string, options?: NotificationOptions) {
+      super();
+      this.title = title;
+      this.options = options;
+
+      try {
+        ipcRenderer.sendToHost('chatty-notification', {
+          title,
+          body: options?.body || '',
+          icon: options?.icon,
+          tag: options?.tag,
+        });
+      } catch {}
+    }
+
+    close() {}
   }
-} catch {}
+
+  try {
+    (window as any).Notification = ChattyNotification;
+  } catch {}
+}
 
 // Extracts unread count from document title
 function parseTitleForUnread(title: string): number {
@@ -60,6 +75,62 @@ function checkUnread() {
   }
 }
 
+// Presenter Shield / Screen-Share PII Blur Support
+function setPresenterShield(enabled: boolean) {
+  let styleEl = document.getElementById('chatty-presenter-shield-style');
+  if (enabled) {
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'chatty-presenter-shield-style';
+      styleEl.textContent = `
+        /* Chatty Presenter Shield: Smart PII & Message Blurring */
+        .chatty-shield-active img,
+        .chatty-shield-active video,
+        .chatty-shield-active [role="row"],
+        .chatty-shield-active [data-testid="cell-frame-container"],
+        .chatty-shield-active .message,
+        .chatty-shield-active [class*="message"],
+        .chatty-shield-active [class*="Message"],
+        .chatty-shield-active [class*="bubble"],
+        .chatty-shield-active [class*="thread"],
+        .chatty-shield-active .p-channel_sidebar__channel,
+        .chatty-shield-active .peer-title,
+        .chatty-shield-active .chat-title {
+          filter: blur(8px) !important;
+          transition: filter 0.16s ease-in-out !important;
+        }
+        .chatty-shield-active img:hover,
+        .chatty-shield-active video:hover,
+        .chatty-shield-active [role="row"]:hover,
+        .chatty-shield-active [data-testid="cell-frame-container"]:hover,
+        .chatty-shield-active .message:hover,
+        .chatty-shield-active [class*="message"]:hover,
+        .chatty-shield-active [class*="Message"]:hover,
+        .chatty-shield-active [class*="bubble"]:hover,
+        .chatty-shield-active [class*="thread"]:hover,
+        .chatty-shield-active .p-channel_sidebar__channel:hover,
+        .chatty-shield-active .peer-title:hover,
+        .chatty-shield-active .chat-title:hover {
+          filter: none !important;
+        }
+      `;
+      (document.head || document.documentElement).appendChild(styleEl);
+    }
+    document.body?.classList.add('chatty-shield-active');
+    document.documentElement?.classList.add('chatty-shield-active');
+  } else {
+    document.body?.classList.remove('chatty-shield-active');
+    document.documentElement?.classList.remove('chatty-shield-active');
+    if (styleEl) {
+      styleEl.remove();
+    }
+  }
+}
+
+ipcRenderer.on('chatty-set-presenter-mode', (_event, enabled: boolean) => {
+  setPresenterShield(Boolean(enabled));
+});
+
 // Observe Title Changes
 window.addEventListener('DOMContentLoaded', () => {
   checkUnread();
@@ -72,4 +143,17 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Periodic fallback check (every 3 seconds) with low CPU footprint
   setInterval(checkUnread, 3000);
+
+  // Hide browser deprecation warning banners on Slack
+  if (window.location.hostname.includes('slack.com')) {
+    const slackStyle = document.createElement('style');
+    slackStyle.textContent = `
+      .c-banner--deprecation,
+      .p-client_container__deprecation_banner,
+      [data-qa="deprecation-banner"] {
+        display: none !important;
+      }
+    `;
+    (document.head || document.documentElement)?.appendChild(slackStyle);
+  }
 });

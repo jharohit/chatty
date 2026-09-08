@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { THEMES, SERVICE_PRESETS } from '../constants/presets';
+import { THEMES, SERVICE_PRESETS, WORKSPACES } from '../constants/presets';
 import { ServiceIcon } from './ServiceIcon';
 import {
   Search,
@@ -14,13 +14,16 @@ import {
   Check,
   Shield,
   Trash2,
+  Layers,
+  EyeOff,
+  ArrowLeftRight,
 } from 'lucide-react';
 
 interface PaletteItem {
   id: string;
   title: string;
   subtitle?: string;
-  category: 'Chats & Accounts' | 'Actions' | 'Themes';
+  category: 'Chats & Accounts' | 'Workspaces' | 'Actions' | 'Themes';
   icon: React.ReactNode;
   action: () => void;
 }
@@ -35,12 +38,15 @@ export const CommandPalette: React.FC = () => {
     settings,
     setTheme,
     toggleSplitView,
+    swapSplitServices,
     toggleFocusMode,
     lockApp,
     hibernateAllInactive,
     reloadActiveService,
     setAddServiceOpen,
     addService,
+    setWorkspaceId,
+    toggleScreenShareShield,
   } = useApp();
 
   const [query, setQuery] = useState('');
@@ -89,7 +95,50 @@ export const CommandPalette: React.FC = () => {
     },
   });
 
-  // 3. Quick Actions
+  // 3. Workspaces
+  WORKSPACES.forEach((ws) => {
+    items.push({
+      id: `ws-${ws.id}`,
+      title: `${ws.emoji} Switch to ${ws.name} Workspace`,
+      subtitle: ws.description,
+      category: 'Workspaces',
+      icon: <Layers className="w-4 h-4 text-purple-500" />,
+      action: () => {
+        setWorkspaceId(ws.id);
+        setCommandPaletteOpen(false);
+      },
+    });
+  });
+
+  // 4. Quick Actions
+  items.push({
+    id: 'action-presenter-shield',
+    title: settings.screenShareShield
+      ? 'Disable Presenter Mode'
+      : 'Enable Presenter Mode (PII Blur for Screen Sharing)',
+    subtitle: 'Blurs chat messages and phone numbers while on video calls (⌘P)',
+    category: 'Actions',
+    icon: <EyeOff className="w-4 h-4 text-emerald-500" />,
+    action: () => {
+      toggleScreenShareShield();
+      setCommandPaletteOpen(false);
+    },
+  });
+
+  if (settings.splitViewEnabled) {
+    items.push({
+      id: 'action-swap-split',
+      title: 'Swap Split View Panes',
+      subtitle: 'Exchange left and right active chats',
+      category: 'Actions',
+      icon: <ArrowLeftRight className="w-4 h-4 text-blue-500" />,
+      action: () => {
+        swapSplitServices();
+        setCommandPaletteOpen(false);
+      },
+    });
+  }
+
   items.push({
     id: 'action-ram-save',
     title: 'Save RAM: Hibernate Inactive Tabs',

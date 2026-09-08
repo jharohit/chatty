@@ -9,6 +9,7 @@ import { AddServiceModal } from './components/AddServiceModal';
 import { MemoryMonitorModal } from './components/MemoryMonitorModal';
 import { SettingsModal } from './components/SettingsModal';
 import { PrivacyShield } from './components/PrivacyShield';
+import { OnboardingModal } from './components/OnboardingModal';
 import { MoonStar } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -20,8 +21,10 @@ export const App: React.FC = () => {
     setAddServiceOpen,
     setSettingsOpen,
     toggleSplitView,
+    swapSplitServices,
     toggleFocusMode,
     lockApp,
+    toggleScreenShareShield,
   } = useApp();
 
   const activeTheme = THEMES[settings.theme] || THEMES.sakura;
@@ -33,15 +36,25 @@ export const App: React.FC = () => {
       const isCmdOrCtrl = e.metaKey || e.ctrlKey;
 
       if (isCmdOrCtrl) {
-        // Cmd+K: Command Palette
-        if (e.key.toLowerCase() === 'k') {
+        // Cmd+Alt+S: Swap Split Panes
+        if (e.altKey && e.key.toLowerCase() === 's') {
           e.preventDefault();
-          setCommandPaletteOpen(true);
+          swapSplitServices();
         }
         // Cmd+S: Split View
         else if (e.key.toLowerCase() === 's') {
           e.preventDefault();
           toggleSplitView();
+        }
+        // Cmd+P: Presenter Mode (Screen-Share Shield)
+        else if (e.key.toLowerCase() === 'p') {
+          e.preventDefault();
+          toggleScreenShareShield();
+        }
+        // Cmd+K: Command Palette
+        else if (e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          setCommandPaletteOpen(true);
         }
         // Cmd+L: Privacy Shield
         else if (e.key.toLowerCase() === 'l') {
@@ -121,6 +134,7 @@ export const App: React.FC = () => {
       <MemoryMonitorModal />
       <SettingsModal />
       <PrivacyShield />
+      <OnboardingModal />
     </div>
   );
 };

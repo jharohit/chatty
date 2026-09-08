@@ -1,5 +1,7 @@
 export type ThemeId = 'sakura' | 'lavender' | 'matcha' | 'nordic' | 'buttercup' | 'noir';
 
+export type WorkspaceId = 'all' | 'work' | 'personal' | 'ai';
+
 export type ServiceType =
   | 'whatsapp'
   | 'whatsapp_business'
@@ -11,6 +13,9 @@ export type ServiceType =
   | 'messenger'
   | 'chatgpt'
   | 'claude'
+  | 'gemini'
+  | 'perplexity'
+  | 'grok'
   | 'custom';
 
 export interface Service {
@@ -27,6 +32,8 @@ export interface Service {
   lastActive: number;
   unreadCount?: number;
   customIcon?: string;
+  workspaceId?: WorkspaceId;
+  neverSleep?: boolean;
 }
 
 export interface ServicePreset {
@@ -52,4 +59,7 @@ export interface AppSettings {
   splitRatio: number; // 30 to 70 percentage
   showRamMonitor: boolean;
   defaultZoom?: number; // 0.9, 1.0, 1.1, 1.25, 1.3
+  screenShareShield: boolean;
+  activeWorkspaceId: WorkspaceId;
+  backgroundNotifications: boolean; // Keep background tabs connected to receive notifications
 }

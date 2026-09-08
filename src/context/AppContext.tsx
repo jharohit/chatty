@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { Service, ServicePreset, ThemeId, AppSettings } from '../types';
+import { Service, ServicePreset, ThemeId, AppSettings, WorkspaceId } from '../types';
 import { INITIAL_SERVICES } from '../constants/presets';
 import { platform } from '../services/platform';
 import { sounds } from '../utils/sound';
 
 interface AppContextType {
   services: Service[];
+  filteredServices: Service[];
   activeService: Service | null;
   activeServiceId: string;
   secondaryService: Service | null;
@@ -17,8 +18,11 @@ interface AppContextType {
   isAddServiceOpen: boolean;
   isSettingsOpen: boolean;
   isMemoryModalOpen: boolean;
+  isOnboardingOpen: boolean;
+  isFreshInstall: boolean;
 
   // Actions
+  setServices: React.Dispatch<React.SetStateAction<Service[]>>;
   setActiveServiceId: (id: string) => void;
   setSecondaryServiceId: (id: string | null) => void;
   addService: (
@@ -26,7 +30,8 @@ interface AppContextType {
     customName?: string,
     customUrl?: string,
     accountLabel?: string,
-    customColor?: string
+    customColor?: string,
+    workspaceId?: WorkspaceId
   ) => Service;
   removeService: (id: string) => Promise<void>;
   updateService: (id: string, partial: Partial<Service>) => void;
@@ -34,6 +39,7 @@ interface AppContextType {
   wakeService: (id: string) => void;
   hibernateAllInactive: () => void;
   toggleSplitView: (secondaryId?: string) => void;
+  swapSplitServices: () => void;
   setSplitRatio: (ratio: number) => void;
   setTheme: (theme: ThemeId) => void;
   toggleFocusMode: () => void;
@@ -44,12 +50,15 @@ interface AppContextType {
   openExternalActiveService: () => void;
   updateSettings: (partial: Partial<AppSettings>) => void;
   setDefaultZoom: (zoom: number) => void;
+  setWorkspaceId: (id: WorkspaceId) => void;
+  toggleScreenShareShield: () => void;
 
   // Modals
   setCommandPaletteOpen: (open: boolean) => void;
   setAddServiceOpen: (open: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
   setMemoryModalOpen: (open: boolean) => void;
+  setOnboardingOpen: (open: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -69,8 +78,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed.map((s: Service) => {
-            if (s.type === 'slack' && (s.url === 'https://app.slack.com/client' || s.url.includes('unsupported-browser'))) {
-              return { ...s, url: 'https://slack.com/signin' };
+            if (
+              s.type === 'slack' &&
+              (s.url === 'https://app.slack.com/client' ||
+                s.url.includes('unsupported-browser') ||
+                s.url === 'https://slack.com/signin' ||
+                s.url.endsWith('/signin'))
+            ) {
+              return { ...s, url: 'https://slack.com/workspace-signin' };
             }
             return s;
           });
@@ -94,12 +109,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Settings
   const [settings, setSettings] = useState<AppSettings>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return {
-      theme: 'sakura',
+    const defaults = {
+      theme: 'sakura' as ThemeId,
       soundEnabled: true,
       autoSleepMinutes: 15,
       focusMode: false,
@@ -109,7 +120,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       splitViewSecondaryId: null,
       splitRatio: 50,
       showRamMonitor: true,
+      screenShareShield: false,
+      activeWorkspaceId: 'all' as WorkspaceId,
+      backgroundNotifications: true,
     };
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+      if (saved) {
+        return { ...defaults, ...JSON.parse(saved) };
+      }
+    } catch {}
+    return defaults;
   });
 
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
@@ -119,6 +140,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isAddServiceOpen, setAddServiceOpen] = useState(false);
   const [isSettingsOpen, setSettingsOpen] = useState(false);
   const [isMemoryModalOpen, setMemoryModalOpen] = useState(false);
+  const [isOnboardingOpen, setOnboardingOpen] = useState(() => {
+    try {
+      return !localStorage.getItem('chatty_onboarding_v1');
+    } catch {
+      return false;
+    }
+  });
+
+  const isFreshInstall = useMemo(() => {
+    try {
+      return !localStorage.getItem(STORAGE_KEYS.SERVICES);
+    } catch {
+      return false;
+    }
+  }, []);
 
   // Synchronize sounds state
   useEffect(() => {
@@ -195,11 +231,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       customName?: string,
       customUrl?: string,
       accountLabel?: string,
-      customColor?: string
+      customColor?: string,
+      workspaceId?: WorkspaceId
     ): Service => {
       const uniqueId = `srv-${preset.type}-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 5)}`;
       // Isolated persistent partition for true zero-collision multi-account sessions
       const partition = `persist:service_${uniqueId}`;
+
+      const resolvedWorkspace: WorkspaceId =
+        workspaceId ||
+        (preset.category === 'work' ? 'work' : preset.category === 'ai' ? 'ai' : 'personal');
 
       const newService: Service = {
         id: uniqueId,
@@ -213,6 +254,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         zoomFactor: 1.0,
         isHibernated: false,
         lastActive: Date.now(),
+        workspaceId: resolvedWorkspace,
       };
 
       setServices((prev) => [...prev, newService]);
@@ -275,7 +317,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     sounds.playSleep();
     setServices((prev) =>
       prev.map((s) => {
-        if (s.id !== activeServiceId && s.id !== secondaryServiceId) {
+        if (s.id !== activeServiceId && s.id !== secondaryServiceId && !s.neverSleep) {
           return { ...s, isHibernated: true };
         }
         return s;
@@ -296,6 +338,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             s.id !== activeServiceId &&
             s.id !== secondaryServiceId &&
             !s.isHibernated &&
+            !s.neverSleep &&
             now - s.lastActive > thresholdMs
           ) {
             return { ...s, isHibernated: true };
@@ -411,10 +454,84 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [updateSettings, activeServiceId, updateService]
   );
 
+  // Swap Left/Right Split View Panes
+  const swapSplitServices = useCallback(() => {
+    if (!settings.splitViewEnabled || !secondaryServiceId) return;
+    sounds.playSwitch();
+    const prevPrimary = activeServiceId;
+    const prevSecondary = secondaryServiceId;
+    setActiveServiceIdState(prevSecondary);
+    setSecondaryServiceId(prevPrimary);
+    setSettings((prev) => ({ ...prev, splitViewSecondaryId: prevPrimary }));
+  }, [settings.splitViewEnabled, secondaryServiceId, activeServiceId]);
+
+  // Filtered Services based on Active Workspace
+  const filteredServices = useMemo(() => {
+    if (!settings.activeWorkspaceId || settings.activeWorkspaceId === 'all') return services;
+    return services.filter((s) => {
+      if (s.workspaceId) return s.workspaceId === settings.activeWorkspaceId;
+      if (settings.activeWorkspaceId === 'ai') return s.type === 'chatgpt' || s.type === 'claude';
+      if (settings.activeWorkspaceId === 'work') {
+        return s.type === 'slack' || s.type === 'google_chat' || s.type === 'whatsapp_business';
+      }
+      if (settings.activeWorkspaceId === 'personal') {
+        return (
+          s.type === 'whatsapp' ||
+          s.type === 'telegram' ||
+          s.type === 'signal' ||
+          s.type === 'messenger' ||
+          s.type === 'discord'
+        );
+      }
+      return true;
+    });
+  }, [services, settings.activeWorkspaceId]);
+
+  // Set Workspace with auto-selection of matching service if needed
+  const setWorkspaceId = useCallback(
+    (id: WorkspaceId) => {
+      sounds.playClick();
+      updateSettings({ activeWorkspaceId: id });
+      if (id !== 'all') {
+        const matching = services.filter((s) => {
+          if (s.workspaceId) return s.workspaceId === id;
+          if (id === 'ai') return s.type === 'chatgpt' || s.type === 'claude';
+          if (id === 'work') {
+            return s.type === 'slack' || s.type === 'google_chat' || s.type === 'whatsapp_business';
+          }
+          if (id === 'personal') {
+            return (
+              s.type === 'whatsapp' ||
+              s.type === 'telegram' ||
+              s.type === 'signal' ||
+              s.type === 'messenger' ||
+              s.type === 'discord'
+            );
+          }
+          return false;
+        });
+        if (matching.length > 0 && !matching.some((s) => s.id === activeServiceId)) {
+          setActiveServiceIdState(matching[0].id);
+        }
+      }
+    },
+    [updateSettings, services, activeServiceId]
+  );
+
+  // Presenter Mode / Screen Share Privacy Shield Toggle
+  const toggleScreenShareShield = useCallback(() => {
+    const nextVal = !settings.screenShareShield;
+    sounds.playChord(!nextVal);
+    updateSettings({ screenShareShield: nextVal });
+    const event = new CustomEvent('chatty:screen-share-shield', { detail: { enabled: nextVal } });
+    window.dispatchEvent(event);
+  }, [settings.screenShareShield, updateSettings]);
+
   return (
     <AppContext.Provider
       value={{
         services,
+        filteredServices,
         activeService,
         activeServiceId,
         secondaryService,
@@ -426,6 +543,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isAddServiceOpen,
         isSettingsOpen,
         isMemoryModalOpen,
+        isOnboardingOpen,
+        isFreshInstall,
+        setServices,
         setActiveServiceId,
         setSecondaryServiceId,
         addService,
@@ -435,6 +555,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         wakeService,
         hibernateAllInactive,
         toggleSplitView,
+        swapSplitServices,
         setSplitRatio,
         setTheme,
         toggleFocusMode,
@@ -445,10 +566,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         openExternalActiveService,
         updateSettings,
         setDefaultZoom,
+        setWorkspaceId,
+        toggleScreenShareShield,
         setCommandPaletteOpen,
         setAddServiceOpen,
         setSettingsOpen,
         setMemoryModalOpen,
+        setOnboardingOpen,
       }}
     >
       {children}

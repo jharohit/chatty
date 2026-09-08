@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ServiceType } from '../types';
 import { Globe } from 'lucide-react';
 
@@ -6,16 +6,42 @@ interface ServiceIconProps {
   type: ServiceType;
   className?: string;
   size?: number;
+  url?: string;
 }
 
-export const ServiceIcon: React.FC<ServiceIconProps> = ({ type, className = 'w-6 h-6', size = 24 }) => {
+export const ServiceIcon: React.FC<ServiceIconProps> = ({
+  type,
+  className = '',
+  size = 24,
+  url,
+}) => {
+  const [imgError, setImgError] = useState(false);
+
+  // Custom apps: attempt to extract favicon from domain
+  if (type === 'custom' && url && !imgError) {
+    try {
+      const hostname = new URL(url).hostname;
+      const faviconUrl = `https://www.google.com/s2/favicons?domain=${hostname}&sz=128`;
+      return (
+        <img
+          src={faviconUrl}
+          alt=""
+          className={`rounded-xl object-contain ${className}`}
+          style={{ width: size, height: size, minWidth: size, minHeight: size }}
+          onError={() => setImgError(true)}
+        />
+      );
+    } catch {}
+  }
+
+  const iconStyle = { width: size, height: size, minWidth: size, minHeight: size };
+
   switch (type) {
     case 'whatsapp':
     case 'whatsapp_business':
       return (
         <svg
-          width={size}
-          height={size}
+          style={iconStyle}
           viewBox="0 0 32 32"
           fill="none"
           className={className}
@@ -32,8 +58,7 @@ export const ServiceIcon: React.FC<ServiceIconProps> = ({ type, className = 'w-6
     case 'telegram':
       return (
         <svg
-          width={size}
-          height={size}
+          style={iconStyle}
           viewBox="0 0 32 32"
           fill="none"
           className={className}
@@ -50,8 +75,7 @@ export const ServiceIcon: React.FC<ServiceIconProps> = ({ type, className = 'w-6
     case 'slack':
       return (
         <svg
-          width={size}
-          height={size}
+          style={iconStyle}
           viewBox="0 0 32 32"
           fill="none"
           className={className}
@@ -80,8 +104,7 @@ export const ServiceIcon: React.FC<ServiceIconProps> = ({ type, className = 'w-6
     case 'google_chat':
       return (
         <svg
-          width={size}
-          height={size}
+          style={iconStyle}
           viewBox="0 0 32 32"
           fill="none"
           className={className}
@@ -102,8 +125,7 @@ export const ServiceIcon: React.FC<ServiceIconProps> = ({ type, className = 'w-6
     case 'signal':
       return (
         <svg
-          width={size}
-          height={size}
+          style={iconStyle}
           viewBox="0 0 32 32"
           fill="none"
           className={className}
@@ -120,8 +142,7 @@ export const ServiceIcon: React.FC<ServiceIconProps> = ({ type, className = 'w-6
     case 'discord':
       return (
         <svg
-          width={size}
-          height={size}
+          style={iconStyle}
           viewBox="0 0 32 32"
           fill="none"
           className={className}
@@ -138,8 +159,7 @@ export const ServiceIcon: React.FC<ServiceIconProps> = ({ type, className = 'w-6
     case 'messenger':
       return (
         <svg
-          width={size}
-          height={size}
+          style={iconStyle}
           viewBox="0 0 32 32"
           fill="none"
           className={className}
@@ -156,8 +176,7 @@ export const ServiceIcon: React.FC<ServiceIconProps> = ({ type, className = 'w-6
     case 'chatgpt':
       return (
         <svg
-          width={size}
-          height={size}
+          style={iconStyle}
           viewBox="0 0 32 32"
           fill="none"
           className={className}
@@ -176,16 +195,74 @@ export const ServiceIcon: React.FC<ServiceIconProps> = ({ type, className = 'w-6
     case 'claude':
       return (
         <svg
-          width={size}
-          height={size}
+          style={iconStyle}
           viewBox="0 0 32 32"
           fill="none"
           className={className}
           xmlns="http://www.w3.org/2000/svg"
         >
-          <circle cx="16" cy="16" r="16" fill="#D97706" />
+          <circle cx="16" cy="16" r="16" fill="#D96B43" />
           <path
-            d="M16 7L18.2 13.8L25 16L18.2 18.2L16 25L13.8 18.2L7 16L13.8 13.8L16 7Z"
+            d="M17.5 8L18.8 13.2L24 14.5L18.8 15.8L17.5 21L16.2 15.8L11 14.5L16.2 13.2L17.5 8Z"
+            fill="white"
+          />
+          <path
+            d="M13 19L13.8 21.8L16.6 22.6L13.8 23.4L13 26.2L12.2 23.4L9.4 22.6L12.2 21.8L13 19Z"
+            fill="white"
+            opacity="0.9"
+          />
+        </svg>
+      );
+
+    case 'gemini':
+      return (
+        <svg
+          style={iconStyle}
+          viewBox="0 0 32 32"
+          fill="none"
+          className={className}
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <circle cx="16" cy="16" r="16" fill="#1A73E8" />
+          <path
+            d="M16 6C16 11.5 11.5 16 6 16C11.5 16 16 20.5 16 26C16 20.5 20.5 16 26 16C20.5 16 16 11.5 16 6Z"
+            fill="white"
+          />
+        </svg>
+      );
+
+    case 'perplexity':
+      return (
+        <svg
+          style={iconStyle}
+          viewBox="0 0 32 32"
+          fill="none"
+          className={className}
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <circle cx="16" cy="16" r="16" fill="#20B8CD" />
+          <path
+            d="M16 8V24M8 16H24M10.3 10.3L21.7 21.7M21.7 10.3L10.3 21.7"
+            stroke="white"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+          />
+          <circle cx="16" cy="16" r="3" fill="white" />
+        </svg>
+      );
+
+    case 'grok':
+      return (
+        <svg
+          style={iconStyle}
+          viewBox="0 0 32 32"
+          fill="none"
+          className={className}
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <circle cx="16" cy="16" r="16" fill="#0F1419" />
+          <path
+            d="M19.5 8H22.5L16 15.5L23.5 24H17.5L12.5 17.5L7.5 24H4.5L11.5 16L4.5 8H10.5L15 14L19.5 8Z"
             fill="white"
           />
         </svg>

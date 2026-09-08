@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { THEMES } from '../constants/presets';
 import { ThemeId } from '../types';
 import { platform } from '../services/platform';
+import { ChattyLogo } from './ChattyLogo';
 import {
   X,
   Palette,
@@ -18,6 +19,7 @@ import {
   Sliders,
   Keyboard,
   FolderOpen,
+  EyeOff,
 } from 'lucide-react';
 
 type SettingsTab = 'general' | 'memory' | 'privacy' | 'shortcuts';
@@ -30,6 +32,8 @@ export const SettingsModal: React.FC = () => {
     setTheme,
     updateSettings,
     setDefaultZoom,
+    toggleScreenShareShield,
+    setOnboardingOpen,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
@@ -238,6 +242,27 @@ export const SettingsModal: React.FC = () => {
                       />
                     </button>
                   </div>
+
+                  <div className="pt-3 border-t border-zinc-100 dark:border-zinc-700/60 flex items-center justify-between">
+                    <div>
+                      <div className="text-[13px] font-medium text-zinc-800 dark:text-zinc-100">
+                        Workspace Setup & App Catalog
+                      </div>
+                      <div className="text-[12px] text-zinc-500 dark:text-zinc-400">
+                        Explore AI assistants (Claude, ChatGPT, Gemini, Perplexity, Grok) and messaging
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setSettingsOpen(false);
+                        setOnboardingOpen(true);
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition-all cursor-pointer"
+                    >
+                      Open Setup
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -339,6 +364,38 @@ export const SettingsModal: React.FC = () => {
                   <div className="pt-3 border-t border-zinc-100 dark:border-zinc-700/60 flex items-center justify-between">
                     <div>
                       <div className="text-[13px] font-medium text-zinc-800 dark:text-zinc-100">
+                        Background Notifications (Keep Tabs Connected)
+                      </div>
+                      <div className="text-[12px] text-zinc-500 dark:text-zinc-400">
+                        Keep Slack, WhatsApp, and background tabs connected so you never miss incoming messages
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() =>
+                        updateSettings({
+                          backgroundNotifications: !settings.backgroundNotifications,
+                        })
+                      }
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
+                        settings.backgroundNotifications !== false
+                          ? 'bg-purple-600'
+                          : 'bg-zinc-300 dark:bg-zinc-700'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition-transform ${
+                          settings.backgroundNotifications !== false
+                            ? 'translate-x-6'
+                            : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="pt-3 border-t border-zinc-100 dark:border-zinc-700/60 flex items-center justify-between">
+                    <div>
+                      <div className="text-[13px] font-medium text-zinc-800 dark:text-zinc-100">
                         Sidebar Live RAM Badge
                       </div>
                       <div className="text-[12px] text-zinc-500 dark:text-zinc-400">
@@ -348,7 +405,7 @@ export const SettingsModal: React.FC = () => {
 
                     <button
                       onClick={() => updateSettings({ showRamMonitor: !settings.showRamMonitor })}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
                         settings.showRamMonitor ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'
                       }`}
                     >
@@ -410,6 +467,39 @@ export const SettingsModal: React.FC = () => {
                         </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Presenter Mode Screen Share Card */}
+                <div
+                  className={`mt-4 rounded-xl border p-4 shadow-xs ${
+                    isNoir ? 'bg-[#1E202E] border-zinc-700/80' : 'bg-white border-zinc-200/80'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-xs">
+                        <EyeOff className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-[13px] font-medium text-zinc-800 dark:text-zinc-100">
+                          Presenter Mode (Anti-PII Screen Share Blur)
+                        </div>
+                        <div className="text-[12px] text-zinc-500 dark:text-zinc-400 max-w-sm">
+                          Smart-blurs messages and phone numbers during screen sharing. Hover over any message to reveal.
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={toggleScreenShareShield}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                        settings.screenShareShield
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300'
+                      }`}
+                    >
+                      {settings.screenShareShield ? 'Enabled' : 'Disabled'}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -474,8 +564,10 @@ export const SettingsModal: React.FC = () => {
                 >
                   {[
                     { key: '⌘ 1 .. 9', desc: 'Switch instantly between chat accounts' },
-                    { key: '⌘ K', desc: 'Open Raycast / Spotlight Command Palette' },
+                    { key: '⌘ K', desc: 'Open Command Palette & Omnibox' },
+                    { key: '⌘ P', desc: 'Toggle Presenter Mode (Screen-Share Shield)' },
                     { key: '⌘ S', desc: 'Toggle Side-by-Side Split View' },
+                    { key: '⌘ ⌥ S', desc: 'Swap Left / Right Split View Panes' },
                     { key: '⌘ L', desc: 'Lock Privacy Screen Shield' },
                     { key: '⌘ D', desc: 'Toggle Focus Mode / Do Not Disturb' },
                     { key: '⌘ N', desc: 'Add Service or another WhatsApp account' },
@@ -503,7 +595,10 @@ export const SettingsModal: React.FC = () => {
             isNoir ? 'bg-[#151722] border-zinc-800' : 'bg-[#EAEAEF] border-zinc-300/70'
           }`}
         >
-          <span>Chatty for macOS • 100% Private & Local</span>
+          <div className="flex items-center space-x-2">
+            <ChattyLogo size={16} />
+            <span className="font-medium text-zinc-600 dark:text-zinc-400">Chatty for macOS • 100% Private & Local</span>
+          </div>
           <button
             onClick={() => setSettingsOpen(false)}
             className="px-4 py-1.5 rounded-lg text-[13px] font-medium bg-zinc-900 dark:bg-white hover:bg-zinc-800 text-white dark:text-zinc-900 shadow-xs transition-colors"

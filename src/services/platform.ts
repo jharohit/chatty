@@ -21,6 +21,8 @@ export interface IPlatformBridge {
   clearPartitionData(partition: string): Promise<{ success: boolean; error?: string }>;
   getUserDataPath(): Promise<string>;
   windowControl(action: 'minimize' | 'maximize' | 'close'): Promise<void>;
+  showNotification(opts: { title: string; body: string; serviceId?: string }): Promise<boolean>;
+  onActivateService?(callback: (serviceId: string) => void): () => void;
 }
 
 declare global {
@@ -33,13 +35,21 @@ declare global {
       clearPartitionData: (partition: string) => Promise<{ success: boolean; error?: string }>;
       getUserDataPath: () => Promise<string>;
       windowControl: (action: 'minimize' | 'maximize' | 'close') => Promise<void>;
+      showNotification: (options: { title: string; body: string; serviceId?: string }) => Promise<boolean>;
+      onActivateService: (callback: (serviceId: string) => void) => () => void;
     };
   }
 }
 
 class PlatformBridge implements IPlatformBridge {
   get isElectron(): boolean {
-    return typeof window !== 'undefined' && !!window.chattyAPI;
+    if (typeof window === 'undefined') return false;
+    return (
+      !!window.chattyAPI ||
+      !!(window as any).process?.versions?.electron ||
+      (typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('electron')) ||
+      (typeof customElements !== 'undefined' && !!customElements.get('webview'))
+    );
   }
 
   get platform(): 'darwin' | 'ios' | 'browser' {
@@ -104,6 +114,25 @@ class PlatformBridge implements IPlatformBridge {
     if (this.isElectron && window.chattyAPI) {
       await window.chattyAPI.windowControl(action);
     }
+  }
+
+  async showNotification(opts: { title: string; body: string; serviceId?: string }): Promise<boolean> {
+    if (this.isElectron && window.chattyAPI) {
+      return await window.chattyAPI.showNotification(opts);
+    }
+    // HTML5 notification fallback if in browser
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      new Notification(opts.title, { body: opts.body });
+      return true;
+    }
+    return false;
+  }
+
+  onActivateService(callback: (serviceId: string) => void): () => void {
+    if (this.isElectron && window.chattyAPI?.onActivateService) {
+      return window.chattyAPI.onActivateService(callback);
+    }
+    return () => {};
   }
 }
 

@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import path from 'path';
 
 export interface ChattyAPI {
   platform: string;
@@ -15,11 +14,13 @@ export interface ChattyAPI {
   clearPartitionData: (partition: string) => Promise<{ success: boolean; error?: string }>;
   getUserDataPath: () => Promise<string>;
   windowControl: (action: 'minimize' | 'maximize' | 'close') => Promise<void>;
+  showNotification: (options: { title: string; body: string; serviceId?: string }) => Promise<boolean>;
+  onActivateService: (callback: (serviceId: string) => void) => () => void;
 }
 
 const api: ChattyAPI = {
   platform: process.platform,
-  webviewPreloadPath: `file://${path.join(__dirname, 'webview-preload.cjs')}`,
+  webviewPreloadPath: `file://${__dirname}/webview-preload.cjs`,
   getSystemMemory: () => ipcRenderer.invoke('chatty:get-system-memory'),
   setBadgeCount: (count: number) => ipcRenderer.invoke('chatty:set-badge-count', count),
   openExternal: (url: string) => ipcRenderer.invoke('chatty:open-external', url),
@@ -27,6 +28,16 @@ const api: ChattyAPI = {
   getUserDataPath: () => ipcRenderer.invoke('chatty:get-user-data-path'),
   windowControl: (action: 'minimize' | 'maximize' | 'close') =>
     ipcRenderer.invoke('chatty:window-control', action),
+  showNotification: (options) => ipcRenderer.invoke('chatty:show-notification', options),
+  onActivateService: (callback) => {
+    const handler = (_event: any, serviceId: string) => callback(serviceId);
+    ipcRenderer.on('chatty:activate-service', handler);
+    return () => ipcRenderer.removeListener('chatty:activate-service', handler);
+  },
 };
 
-contextBridge.exposeInMainWorld('chattyAPI', api);
+try {
+  contextBridge.exposeInMainWorld('chattyAPI', api);
+} catch (e) {
+  (window as any).chattyAPI = api;
+}

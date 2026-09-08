@@ -1,22 +1,38 @@
-import { app, BrowserWindow, ipcMain, shell, session } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, session, Notification } from 'electron';
 import path from 'path';
 import os from 'os';
+import fs from 'fs';
 
 // Silence non-actionable Chromium internal logs and dev security warnings
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 app.commandLine.appendSwitch('log-level', '3');
-app.commandLine.appendSwitch('js-flags', '--max-old-space-size=512');
+app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
 
-// Modern standard macOS Chrome User Agent to guarantee Slack, WhatsApp, Google Chat compatibility
+// Hardware acceleration & GPU rendering flags for 60/120fps macOS compositing
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('enable-native-gpu-memory-buffers');
+app.commandLine.appendSwitch('enable-features', 'CanvasOopRasterization,VaapiVideoDecoder,OverlayScrollbar');
+
+// Modern standard macOS Chrome User Agent matching Electron 44 Chromium 152 build
 const CHROME_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.76 Safari/537.36';
+
+// Firefox User Agent for Google Accounts & Gemini authentication
+const FIREFOX_USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:145.0) Gecko/20100101 Firefox/145.0';
 
 app.userAgentFallback = CHROME_USER_AGENT;
 
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
+  const iconPath = path.join(__dirname, '../public/icon.png');
+
   mainWindow = new BrowserWindow({
+    title: 'Chatty',
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
     width: 1240,
     height: 840,
     minWidth: 840,
@@ -33,12 +49,24 @@ function createWindow() {
       webviewTag: true,
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false,
       spellcheck: true,
+      webgl: true,
     },
   });
 
+  if (app.dock && fs.existsSync(iconPath)) {
+    try {
+      app.dock.setIcon(iconPath);
+    } catch {}
+  }
+
+  mainWindow.webContents.on('preload-error', (_event, preloadPath, error) => {
+    console.error(`[Preload Error] ${preloadPath}:`, error);
+  });
+
   mainWindow.once('ready-to-show', () => {
-    console.log('🌸 Chatty window ready to show');
+    console.log('🌸 chatty window ready to show');
     mainWindow?.show();
   });
 
@@ -76,18 +104,54 @@ function createWindow() {
 
 // Global WebContents setup (UserAgent, Permissions, and External Links)
 app.on('web-contents-created', (_event, contents) => {
-  // Apply standard Chrome user agent
+  // Apply standard Chrome user agent by default
   contents.setUserAgent(CHROME_USER_AGENT);
+
+  // Dynamically set native C++ user agent when navigating to Google services
+  const syncGoogleUserAgent = (targetUrl: string) => {
+    const isGoogle =
+      targetUrl.includes('google.com') ||
+      targetUrl.includes('google.co') ||
+      targetUrl.includes('gstatic.com');
+
+    if (isGoogle) {
+      contents.setUserAgent(FIREFOX_USER_AGENT);
+    } else if (contents.getType() === 'webview') {
+      contents.setUserAgent(CHROME_USER_AGENT);
+    }
+  };
+
+  contents.on('will-navigate', (_e, url) => syncGoogleUserAgent(url));
+  contents.on('did-navigate', (_e, url) => syncGoogleUserAgent(url));
 
   // Intercept HTTP request headers to strip any residual Electron identifier
   try {
     contents.session.webRequest.onBeforeSendHeaders(
       { urls: ['*://*/*'] },
       (details, callback) => {
-        details.requestHeaders['User-Agent'] = CHROME_USER_AGENT;
-        details.requestHeaders['sec-ch-ua'] = '"Google Chrome";v="152", "Chromium";v="152", "Not_A Brand";v="24"';
-        details.requestHeaders['sec-ch-ua-mobile'] = '?0';
-        details.requestHeaders['sec-ch-ua-platform'] = '"macOS"';
+        const url = details.url.toLowerCase();
+        const isGoogle =
+          url.includes('google.com') ||
+          url.includes('google.co') ||
+          url.includes('gstatic.com') ||
+          url.includes('googleusercontent.com');
+
+        if (isGoogle) {
+          // Google Accounts allows Firefox natively without embedded browser blocks
+          details.requestHeaders['User-Agent'] = FIREFOX_USER_AGENT;
+          delete details.requestHeaders['sec-ch-ua'];
+          delete details.requestHeaders['sec-ch-ua-mobile'];
+          delete details.requestHeaders['sec-ch-ua-platform'];
+          delete details.requestHeaders['sec-ch-ua-platform-version'];
+          delete details.requestHeaders['sec-ch-ua-arch'];
+          delete details.requestHeaders['sec-ch-ua-bitness'];
+          delete details.requestHeaders['sec-ch-ua-model'];
+          delete details.requestHeaders['sec-ch-ua-full-version'];
+          delete details.requestHeaders['sec-ch-ua-full-version-list'];
+        } else {
+          // Send standard Chrome User-Agent without corrupting Chromium's native Client Hints
+          details.requestHeaders['User-Agent'] = CHROME_USER_AGENT;
+        }
         callback({ requestHeaders: details.requestHeaders });
       }
     );
@@ -114,14 +178,28 @@ app.on('web-contents-created', (_event, contents) => {
 
   // Handle new window / link clicks
   contents.setWindowOpenHandler(({ url }) => {
+    // Slack: If Slack tries to open workspace client or internal page, load it in this webview directly!
+    if (url.includes('slack.com')) {
+      if (url.includes('app.slack.com') || url.includes('/client/')) {
+        contents.loadURL(url);
+        return { action: 'deny' };
+      }
+      return { action: 'allow' };
+    }
+
+    // Google Accounts & Gemini auth: Route directly into the current webview instead of unauthenticated popup!
+    if (url.includes('accounts.google.com') || url.includes('google.com/accounts')) {
+      contents.loadURL(url);
+      return { action: 'deny' };
+    }
+
     // Keep OAuth / auth popups internal if needed, else open in system browser
     if (
-      url.includes('accounts.google.com') ||
       url.includes('appleid.apple.com') ||
       url.includes('github.com/login') ||
       url.includes('oauth') ||
-      url.includes('slack.com/signin') ||
-      url.includes('slack.com/oauth')
+      url.includes('auth') ||
+      url.includes('login')
     ) {
       return { action: 'allow' };
     }
@@ -129,17 +207,23 @@ app.on('web-contents-created', (_event, contents) => {
     return { action: 'deny' };
   });
 
-  // Automatically catch and recover from Slack unsupported-browser redirects
+  // Automatically catch and recover from Slack unsupported-browser redirects & deep links
   contents.on('will-navigate', (event, navigationUrl) => {
+    if (navigationUrl.startsWith('slack://')) {
+      event.preventDefault();
+      const webUrl = navigationUrl.replace('slack://', 'https://app.slack.com/');
+      contents.loadURL(webUrl);
+      return;
+    }
     if (navigationUrl.includes('slack.com/unsupported-browser')) {
       event.preventDefault();
-      contents.loadURL('https://slack.com/signin');
+      contents.loadURL('https://slack.com/workspace-signin');
     }
   });
 
   contents.on('did-redirect-navigation', (_event, navigationUrl) => {
     if (navigationUrl.includes('slack.com/unsupported-browser')) {
-      contents.loadURL('https://slack.com/signin');
+      contents.loadURL('https://slack.com/workspace-signin');
     }
   });
 });
@@ -216,7 +300,7 @@ ipcMain.handle('chatty:clear-partition-data', async (_event, partition: string) 
   try {
     const ses = session.fromPartition(partition);
     await ses.clearStorageData({
-      storages: ['cookies', 'localstorage', 'indexdb', 'websql', 'serviceworkers', 'cachestorage'],
+      storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage'],
     });
     return { success: true };
   } catch (err: any) {
@@ -238,3 +322,37 @@ ipcMain.handle('chatty:window-control', (_event, action: 'minimize' | 'maximize'
     mainWindow.close();
   }
 });
+
+ipcMain.handle(
+  'chatty:show-notification',
+  (_event, { title, body, serviceId }: { title: string; body: string; serviceId?: string }) => {
+    try {
+      if (Notification.isSupported()) {
+        const iconPath = path.join(__dirname, '../public/icon.png');
+        const notif = new Notification({
+          title: title || 'Chatty',
+          body: body || 'New message received',
+          icon: fs.existsSync(iconPath) ? iconPath : undefined,
+          silent: false,
+        });
+
+        notif.on('click', () => {
+          if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+            if (serviceId) {
+              mainWindow.webContents.send('chatty:activate-service', serviceId);
+            }
+          }
+        });
+
+        notif.show();
+        return true;
+      }
+    } catch (err) {
+      console.warn('Could not display notification:', err);
+    }
+    return false;
+  }
+);

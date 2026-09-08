@@ -1,5 +1,70 @@
+# ==============================================================================
+# Chatty - Open Source Git Ignore
+# ==============================================================================
+
+# Dependencies
 node_modules/
+.pnp
+.pnp.js
+
+# Production & Development Build Outputs
 dist/
 dist-electron/
-.DS_Store
+out/
+build/*.iconset/
+
+# Packaged Binaries & Installers (Distribute via GitHub Releases)
+release/
+release-archive/
+*.dmg
+*.blockmap
+*.zip
+*.tar.gz
+
+# Environment Variables, Secrets & Certificates
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.crt
+
+# Logs & Diagnostics
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# macOS System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE & Editor Configurations
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.sublime-project
+*.sublime-workspace
+
+# Local Tooling, Agent Caches & Scratch Files
+.kilo/
+.kilocode/
+.cursor/
+test-*.cjs
+test-*.js
+test-app/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
