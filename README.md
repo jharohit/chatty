@@ -13,6 +13,10 @@
 [![AI Suite](https://img.shields.io/badge/AI%20Suite-Claude%20%7C%20ChatGPT%20%7C%20Gemini%20%7C%20Perplexity%20%7C%20Grok-purple?style=flat-square&logo=sparkles)](https://github.com)
 [![License](https://img.shields.io/badge/License-MIT-amber?style=flat-square)](LICENSE)
 
+<br /><br />
+
+<img src="docs/screenshots/chatty-banner.png" alt="Chatty for macOS - Private, Local & Powerful Messaging Workstation" width="100%" />
+
 </div>
 
 ---
