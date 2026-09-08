@@ -178,31 +178,44 @@ app.on('web-contents-created', (_event, contents) => {
 
   // Handle new window / link clicks
   contents.setWindowOpenHandler(({ url }) => {
-    // Slack: If Slack tries to open workspace client or internal page, load it in this webview directly!
+    // Slack: If Slack tries to open workspace client or internal messages, load it in this webview directly!
     if (url.includes('slack.com')) {
-      if (url.includes('app.slack.com') || url.includes('/client/')) {
-        contents.loadURL(url);
+      if (url.includes('app.slack.com/client') || url.includes('/messages/')) {
+        setImmediate(() => {
+          contents.loadURL(url);
+        });
         return { action: 'deny' };
       }
       return { action: 'allow' };
     }
 
-    // Google Accounts & Gemini auth: Route directly into the current webview instead of unauthenticated popup!
-    if (url.includes('accounts.google.com') || url.includes('google.com/accounts')) {
-      contents.loadURL(url);
-      return { action: 'deny' };
-    }
-
-    // Keep OAuth / auth popups internal if needed, else open in system browser
+    // Google OAuth (Slack Sign in with Google) & authentication popups:
+    // Allow popup window so OAuth handshake can complete and postMessage back to window.opener
     if (
+      url.includes('accounts.google.com') ||
+      url.includes('google.com/accounts') ||
       url.includes('appleid.apple.com') ||
       url.includes('github.com/login') ||
       url.includes('oauth') ||
       url.includes('auth') ||
-      url.includes('login')
+      url.includes('login') ||
+      url.includes('signin')
     ) {
-      return { action: 'allow' };
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 520,
+          height: 680,
+          autoHideMenuBar: true,
+          title: 'Sign in with Google',
+          webPreferences: {
+            contextIsolation: true,
+            sandbox: false,
+          },
+        },
+      };
     }
+
     shell.openExternal(url);
     return { action: 'deny' };
   });
