@@ -22,6 +22,9 @@ export const WebViewContainer: React.FC = () => {
   // Lazy-loading: only instantiate services into DOM once they have been viewed
   const [instantiatedIds, setInstantiatedIds] = useState<Set<string>>(() => new Set([activeServiceId]));
 
+  // Cache initial URL for each webview to prevent React from re-triggering setAttribute('src') on running instances
+  const initialUrlsRef = useRef<Record<string, string>>({});
+
   useEffect(() => {
     setInstantiatedIds((prev) => {
       const next = new Set(prev);
@@ -124,6 +127,11 @@ export const WebViewContainer: React.FC = () => {
     const isSleeping =
       service.isHibernated && !service.neverSleep && !settings.backgroundNotifications;
 
+    if (!initialUrlsRef.current[service.id]) {
+      initialUrlsRef.current[service.id] = service.url;
+    }
+    const initialSrc = initialUrlsRef.current[service.id];
+
     return (
       <div
         key={service.id}
@@ -176,7 +184,7 @@ export const WebViewContainer: React.FC = () => {
           /* Real Electron Webview */
           React.createElement('webview', {
             id: `webview-${service.id}`,
-            src: service.url,
+            src: initialSrc,
             partition: service.partition,
             useragent:
               service.type === 'gemini' || service.url.includes('google.com')
@@ -219,6 +227,16 @@ export const WebViewContainer: React.FC = () => {
                 // Gracefully ignore normal Chromium non-fatal ERR_ABORTED (-3)
                 node.addEventListener('did-fail-load', (e: any) => {
                   if (e.errorCode === -3) return;
+                  console.warn(`[Webview ${service.name} fail-load]:`, e.errorCode, e.errorDescription, e.validatedURL);
+                });
+
+                // Listen to will-navigate and new-window for Slack & Google SSO
+                node.addEventListener('will-navigate', (e: any) => {
+                  console.log(`[Webview ${service.name} will-navigate]:`, e.url);
+                });
+
+                node.addEventListener('new-window', (e: any) => {
+                  console.log(`[Webview ${service.name} new-window]:`, e.url, e.disposition);
                 });
 
                 // IPC messages from webview-preload

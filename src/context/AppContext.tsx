@@ -80,15 +80,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return parsed
             .filter((s: any) => s.type !== 'signal')
             .map((s: Service) => {
-              if (
-                s.type === 'slack' &&
-                (s.url === 'https://app.slack.com/client' ||
-                  s.url.includes('unsupported-browser') ||
-                  s.url === 'https://slack.com/signin' ||
-                  s.url.endsWith('/signin'))
-              ) {
-                return { ...s, url: 'https://slack.com/workspace-signin' };
-              }
+            if (
+              s.type === 'slack' &&
+              (s.url.includes('unsupported-browser') ||
+                s.url === 'https://slack.com/signin' ||
+                s.url.endsWith('/signin') ||
+                s.url === 'https://slack.com/workspace-signin')
+            ) {
+              return { ...s, url: 'https://app.slack.com/client' };
+            }
               return s;
             });
         }
@@ -112,7 +112,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Settings
   const [settings, setSettings] = useState<AppSettings>(() => {
     const defaults = {
-      theme: 'sakura' as ThemeId,
+      theme: 'noir' as ThemeId,
       soundEnabled: true,
       autoSleepMinutes: 15,
       focusMode: false,

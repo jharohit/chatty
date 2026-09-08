@@ -3,10 +3,14 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs';
 
+// App Identity for macOS Application Menu Bar
+app.setName('Chatty');
+
 // Silence non-actionable Chromium internal logs and dev security warnings
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 app.commandLine.appendSwitch('log-level', '3');
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
+app.commandLine.appendSwitch('disable-features', 'ThirdPartyStoragePartitioning,ThirdPartyCookieDeprecation');
 
 // Hardware acceleration & GPU rendering flags for 60/120fps macOS compositing
 app.commandLine.appendSwitch('enable-gpu-rasterization');
@@ -107,22 +111,74 @@ app.on('web-contents-created', (_event, contents) => {
   // Apply standard Chrome user agent by default
   contents.setUserAgent(CHROME_USER_AGENT);
 
-  // Dynamically set native C++ user agent when navigating to Google services
-  const syncGoogleUserAgent = (targetUrl: string) => {
-    const isGoogle =
-      targetUrl.includes('google.com') ||
-      targetUrl.includes('google.co') ||
-      targetUrl.includes('gstatic.com');
+  if (contents.getType() === 'webview') {
+    contents.on('console-message', (_e, _level, msg) => {
+      if (msg.includes('Google') || msg.includes('oauth') || msg.includes('sign') || msg.includes('Error')) {
+        console.log(`[Webview Console] ${msg}`);
+      }
+    });
+  }
 
-    if (isGoogle) {
-      contents.setUserAgent(FIREFOX_USER_AGENT);
-    } else if (contents.getType() === 'webview') {
-      contents.setUserAgent(CHROME_USER_AGENT);
-    }
-  };
+  contents.on('will-navigate', (_e, url) => {
+    console.log(`[Main will-navigate] ${contents.getType()}:`, url);
+  });
+  contents.on('did-redirect-navigation', (_e, url) => {
+    console.log(`[Main did-redirect] ${contents.getType()}:`, url);
+  });
+  contents.on('did-navigate', (_e, url) => {
+    console.log(`[Main did-navigate] ${contents.getType()}:`, url);
+  });
 
-  contents.on('will-navigate', (_e, url) => syncGoogleUserAgent(url));
-  contents.on('did-navigate', (_e, url) => syncGoogleUserAgent(url));
+  // Intercept Google OAuth requests and Slack SSB redirects
+  try {
+    contents.session.webRequest.onBeforeRequest(
+      { urls: ['https://accounts.google.com/o/oauth2/auth*', '*://*.slack.com/*'] },
+      (details, callback) => {
+        // Enforce account chooser for Google OAuth
+        if (details.url.includes('accounts.google.com/o/oauth2/auth')) {
+          try {
+            const urlObj = new URL(details.url);
+            const currentPrompt = urlObj.searchParams.get('prompt');
+            if (currentPrompt !== 'select_account') {
+              urlObj.searchParams.set('prompt', 'select_account');
+              console.log('[Google SSO] Enforcing prompt=select_account');
+              callback({ redirectURL: urlObj.toString() });
+              return;
+            }
+          } catch {}
+        }
+
+        // Intercept Slack Desktop App (SSB) redirects and route to Web Client
+        if (details.url.includes('ssb/redirect') || details.url.includes('%2Fssb%2Fredirect')) {
+          const webUrl = details.url
+            .replace('/ssb/redirect?entry_point=signin', '/client')
+            .replace('redir=%2Fssb%2Fredirect%3Fentry_point%3Dsignin', 'redir=%2Fclient');
+          console.log('[Slack SSO] Redirecting SSB flow to Web Client flow:', webUrl);
+          callback({ redirectURL: webUrl });
+          return;
+        }
+
+        callback({});
+      }
+    );
+  } catch {}
+
+  // Intercept HTTP response headers from Slack to monitor SSO response
+  try {
+    contents.session.webRequest.onHeadersReceived(
+      { urls: ['*://*.slack.com/*'] },
+      (details, callback) => {
+        if (details.url.includes('sso/google') || details.url.includes('sso_failed')) {
+          console.log(`[Slack Response ${details.statusCode}]:`, details.url);
+          if (details.responseHeaders) {
+            const loc = details.responseHeaders['location'] || details.responseHeaders['Location'];
+            if (loc) console.log('[Slack Location Header]:', loc);
+          }
+        }
+        callback({ responseHeaders: details.responseHeaders });
+      }
+    );
+  } catch {}
 
   // Intercept HTTP request headers to strip any residual Electron identifier
   try {
@@ -130,14 +186,29 @@ app.on('web-contents-created', (_event, contents) => {
       { urls: ['*://*/*'] },
       (details, callback) => {
         const url = details.url.toLowerCase();
+        // Identify all Google requests (Gemini, Google Accounts, Google Auth)
         const isGoogle =
           url.includes('google.com') ||
           url.includes('google.co') ||
           url.includes('gstatic.com') ||
           url.includes('googleusercontent.com');
 
-        if (isGoogle) {
-          // Google Accounts allows Firefox natively without embedded browser blocks
+        // Slack requests should maintain consistent Chrome User-Agent
+        const isSlack = url.includes('slack.com');
+
+        if (url.includes('slack.com/sso/google')) {
+          console.log('[Slack SSO Callback Request]:', details.url);
+          console.log(
+            '[Slack SSO Cookie Header]:',
+            details.requestHeaders['Cookie']
+              ? `Present (${details.requestHeaders['Cookie'].length} bytes)`
+              : 'MISSING!'
+          );
+        }
+
+        if (isGoogle && !isSlack) {
+          // Send pure Firefox User-Agent across ALL Google requests (Gemini & Google Accounts)
+          // Completely eliminates Google's "This browser or app may not be secure" block
           details.requestHeaders['User-Agent'] = FIREFOX_USER_AGENT;
           delete details.requestHeaders['sec-ch-ua'];
           delete details.requestHeaders['sec-ch-ua-mobile'];
@@ -149,7 +220,7 @@ app.on('web-contents-created', (_event, contents) => {
           delete details.requestHeaders['sec-ch-ua-full-version'];
           delete details.requestHeaders['sec-ch-ua-full-version-list'];
         } else {
-          // Send standard Chrome User-Agent without corrupting Chromium's native Client Hints
+          // Send standard Chrome User-Agent across Slack and all other services
           details.requestHeaders['User-Agent'] = CHROME_USER_AGENT;
         }
         callback({ requestHeaders: details.requestHeaders });
@@ -178,15 +249,19 @@ app.on('web-contents-created', (_event, contents) => {
 
   // Handle new window / link clicks
   contents.setWindowOpenHandler(({ url }) => {
-    // Slack: If Slack tries to open workspace client or internal messages, load it in this webview directly!
+    console.log('[Main setWindowOpenHandler requested]:', url);
+
+    // Slack: ALL Slack URLs (workspace open, channels, messages, client) MUST load directly in the webview!
+    // Never open separate blank floating windows for Slack
     if (url.includes('slack.com')) {
-      if (url.includes('app.slack.com/client') || url.includes('/messages/')) {
-        setImmediate(() => {
-          contents.loadURL(url);
-        });
-        return { action: 'deny' };
+      let targetUrl = url;
+      if (targetUrl.includes('ssb/redirect') || targetUrl.includes('slack://')) {
+        targetUrl = 'https://app.slack.com/client';
       }
-      return { action: 'allow' };
+      setImmediate(() => {
+        contents.loadURL(targetUrl);
+      });
+      return { action: 'deny' };
     }
 
     // Google OAuth (Slack Sign in with Google) & authentication popups:

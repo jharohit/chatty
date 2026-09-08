@@ -13,9 +13,33 @@
 [![AI Suite](https://img.shields.io/badge/AI%20Suite-Claude%20%7C%20ChatGPT%20%7C%20Gemini%20%7C%20Perplexity%20%7C%20Grok-purple?style=flat-square&logo=sparkles)](https://github.com)
 [![License](https://img.shields.io/badge/License-MIT-amber?style=flat-square)](LICENSE)
 
-[Download Latest DMG](../../releases/latest) • [Key Features](#-key-features) • [Privacy Architecture](#-deep-privacy--security-suite) • [AI Suite](#-built-in-ai-workstation) • [Build from Source](#-development--build-instructions)
-
 </div>
+
+---
+
+## 📑 Table of Contents
+
+- [🌟 Why Chatty?](#-why-chatty)
+- [📸 App Tour & Visual Walkthrough](#-app-tour--visual-walkthrough)
+  - [1. Main Workspace & AI Integration](#1-main-workspace--ai-integration)
+  - [2. System Settings & Customization](#2-system-settings--customization)
+  - [3. Add & Manage Apps Modal](#3-add--manage-apps-modal)
+- [🔒 Deep Privacy & Security Suite](#-deep-privacy--security-suite)
+  - [🛡️ Presenter Mode (Anti-PII Screen-Share Blur)](#️-presenter-mode--anti-pii-screen-share-blur-p)
+  - [🔒 Obsidian Privacy Shield](#-obsidian-privacy-shield-l)
+  - [☕ Pomodoro Break Companion](#-pomodoro-break-companion)
+- [🪄 Built-in AI Workstation](#-built-in-ai-workstation)
+- [🪟 Workspaces, Split-Screen & Productivity](#-workspaces-split-screen--productivity)
+  - [💼 Smart Workspaces & Personas](#-smart-workspaces--personas)
+  - [⚡ 60fps Dual Split-Screen Engine](#-60fps-dual-split-screen-engine-s)
+  - [🔔 Smart Background Notifications](#-smart-background-notifications)
+  - [🚀 Onboarding & Workspace Setup Wizard](#-onboarding--workspace-setup-wizard)
+- [🎨 Signature Pastel Themes](#-signature-pastel-themes)
+- [⌨️ Global Keyboard Shortcuts](#️-global-keyboard-shortcuts)
+- [📦 Packaging & Distribution](#-packaging--distribution)
+- [🛠️ Development & Build Instructions](#️-development--build-instructions)
+- [📁 Repository Structure](#-repository-structure)
+- [📄 License](#-license)
 
 ---
 
@@ -29,6 +53,52 @@ Most multi-account messenger wrappers route user traffic through third-party clo
 - 🛡️ **True Cryptographic Session Isolation**: Run unlimited independent accounts (e.g. *Personal WhatsApp*, *Business WhatsApp*, *Client Slack 1*, *Client Slack 2*) with separate persistent cookie partitions (`persist:service_<uuid>`). Sessions never collide or bleed state.
 - ⚡ **GPU-Accelerated Compositing**: Promoted to macOS CoreAnimation Metal GPU layers for fluid 60/120fps scrolling and instantaneous split-pane divider resizing on Apple Silicon ProMotion displays.
 - 🚀 **Modern Runtime**: Powered by **Electron 44.2.0**, **Chromium 152.0.7977.76**, and **Node.js 24.20.0**, satisfying late-2026 web requirements out-of-the-box.
+
+---
+
+## 📸 App Tour & Visual Walkthrough
+
+### 1. Main Workspace & AI Integration
+<div align="center">
+  <img src="docs/screenshots/01-workspace-annotated.png" alt="Chatty Main Workspace Tour" width="100%" />
+</div>
+
+| # | Component | Capability & Explanation |
+| :---: | :--- | :--- |
+| **①** | **Contextual Workspaces** | Organize services into contexts: **`✨ All`**, **`🏡 Personal`**, **`💼 Work`**, and **`🪄 AI`**. Displays real-time unread dots for background workspaces. |
+| **②** | **Command Palette (`⌘K`)** | Spotlight-style instant fuzzy switcher. Jump directly to any conversation, toggle Presenter Mode, swap split panes, or sleep background tabs. |
+| **③** | **Presenter Shield (`⌘P`) & Utilities** | Instant anti-PII screen-sharing protection (blurs messages & contact phone numbers), font zoom controls, and sound toggles. |
+| **④** | **Isolated Account Partitions** | Run multiple accounts for the same service (e.g. 2 WhatsApps, 3 Slacks) with zero cookie collisions. Scaled 46px icons with clean unread badges. |
+| **⑤** | **Active AI Assistant** | Seamless on-device access to Google Gemini Web, Anthropic Claude, OpenAI ChatGPT, Perplexity AI, and xAI Grok. |
+| **⑥** | **Performance & Privacy Dock** | Live RAM gauge (`180M`), Split View toggle (`⌘S`), Focus Mode (`⌘D`), and the Obsidian Privacy Screen Lock (`⌘L`). |
+
+---
+
+### 2. System Settings & Customization
+<div align="center">
+  <img src="docs/screenshots/02-settings-annotated.png" alt="Chatty Settings Modal Tour" width="100%" />
+</div>
+
+| # | Setting | Description & Usage |
+| :---: | :--- | :--- |
+| **①** | **Modular Preference Sections** | Switch between **General & Appearance**, **RAM Saver** (configurable background notifications & auto-sleep), **Privacy & Data**, and **Keyboard Shortcuts**. |
+| **②** | **Global Web Font Scaling** | 1-click text readability presets (**`90%`**, **`100%`**, **`110%`**, **`125%`**, **`140%`**) applied across all webviews. |
+| **③** | **AI & App Catalog Launcher** | Re-launch the onboarding catalog to discover and add new AI models and messaging services anytime. |
+| **④** | **Signature Pastel Themes** | Six handcrafted palettes: **Blush Sakura**, **Lavender Mist**, **Matcha & Sage**, **Nordic Breeze**, **Buttercup Vanilla**, and **Pastel Noir** (default). |
+
+---
+
+### 3. Add & Manage Apps Modal
+<div align="center">
+  <img src="docs/screenshots/03-add-modal-annotated.png" alt="Chatty Add Apps Modal Tour" width="100%" />
+</div>
+
+| # | Feature | Description & Usage |
+| :---: | :--- | :--- |
+| **①** | **3 App Management Modes** | Choose from **Curated Services** (official messengers & AI), **Add Any Custom URL** (Notion, Linear, GitHub), or **Manage Active Apps** (safe 1-click app removal). |
+| **②** | **Cryptographic Partitioning** | Guarantees that each added instance receives an isolated Chromium cookie partition (`persist:service_<uuid>`). |
+| **③** | **Curated Messengers & AI Suite** | Instant 1-click addition for WhatsApp, WhatsApp Business, Telegram, Slack, Google Chat, Discord, Messenger, ChatGPT, Claude, Gemini, Perplexity, and Grok. |
+| **④** | **Live Instance Counters** | Real-time badges (`1 active`) show how many accounts of each service are deployed in your workspace. |
 
 ---
 

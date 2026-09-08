@@ -155,5 +155,29 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     `;
     (document.head || document.documentElement)?.appendChild(slackStyle);
+
+    // If Slack shows "You're already signed in to... [Open]" picker, automatically click Open
+    const autoOpenWorkspace = () => {
+      const buttons = Array.from(document.querySelectorAll('button, a'));
+      const openBtn = buttons.find((b) => {
+        const text = b.textContent?.trim();
+        const href = (b as HTMLAnchorElement).href || '';
+        return text === 'Open' || href.includes('ssb/redirect') || href.includes('workspace_signin');
+      });
+      if (openBtn) {
+        (openBtn as HTMLElement).click();
+        return true;
+      }
+      return false;
+    };
+
+    if (!autoOpenWorkspace()) {
+      const observer = new MutationObserver(() => {
+        if (autoOpenWorkspace()) observer.disconnect();
+      });
+      if (document.body) {
+        observer.observe(document.body, { childList: true, subtree: true });
+      }
+    }
   }
 });

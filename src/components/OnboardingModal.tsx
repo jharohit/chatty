@@ -25,6 +25,7 @@ export const OnboardingModal: React.FC = () => {
     addService,
     settings,
     setServices,
+    updateSettings,
   } = useApp();
 
   // Presets split by category
@@ -102,6 +103,7 @@ export const OnboardingModal: React.FC = () => {
     }));
 
     setServices(newServices);
+    updateSettings({ theme: 'noir' });
     localStorage.setItem('chatty_services_v1', JSON.stringify(newServices));
     localStorage.setItem('chatty_onboarding_v1', 'completed');
     setOnboardingOpen(false);
