@@ -13,7 +13,7 @@ function loadEnv() {
       if (!trimmed || trimmed.startsWith('#')) return;
       const eqIdx = trimmed.indexOf('=');
       if (eqIdx > 0) {
-        const key = trimmed.slice(0, eqIdx).trim();
+        const key = trimmed.slice(0, eqIdx).replace(/^export\s+/, '').trim();
         const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
         if (!process.env[key]) process.env[key] = val;
       }
