@@ -6,11 +6,31 @@ import fs from 'fs';
 // App Identity for macOS Application Menu Bar
 app.setName('Chatty');
 
+// Enforce Single-Instance Lock to prevent duplicate orphaned background processes
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+  process.exit(0);
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
 // Silence non-actionable Chromium internal logs and dev security warnings
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 app.commandLine.appendSwitch('log-level', '3');
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
 app.commandLine.appendSwitch('disable-features', 'ThirdPartyStoragePartitioning,ThirdPartyCookieDeprecation');
+
+// Memory & V8 heap optimization flags to prevent renderer memory bloat
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=384');
+app.commandLine.appendSwitch('renderer-process-limit', '6');
+app.commandLine.appendSwitch('enable-aggressive-domstorage-flushing');
 
 // Hardware acceleration & GPU rendering flags for 60/120fps macOS compositing
 app.commandLine.appendSwitch('enable-gpu-rasterization');
@@ -101,151 +121,131 @@ function createWindow() {
     mainWindow.loadFile(indexPath);
   }
 
+  mainWindow.on('close', () => {
+    flushAllSessions();
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 }
 
-// Global WebContents setup (UserAgent, Permissions, and External Links)
+// Track configured sessions so webRequest handlers are attached ONCE per partition and can be flushed on quit
+const configuredSessions = new Set<Electron.Session>();
+
+function flushAllSessions() {
+  try {
+    configuredSessions.forEach((ses) => {
+      try {
+        ses.flushStorageData();
+        ses.cookies.flushStore().catch(() => {});
+      } catch {}
+    });
+  } catch {}
+}
+
+// Global WebContents setup (UserAgent, Permissions, Background Throttling, and External Links)
 app.on('web-contents-created', (_event, contents) => {
   // Apply standard Chrome user agent by default
   contents.setUserAgent(CHROME_USER_AGENT);
 
   if (contents.getType() === 'webview') {
-    contents.on('console-message', (_e, _level, msg) => {
-      if (msg.includes('Google') || msg.includes('oauth') || msg.includes('sign') || msg.includes('Error')) {
-        console.log(`[Webview Console] ${msg}`);
-      }
-    });
+    // Enable Chromium background throttling (1Hz timers & GPU memory release when hidden)
+    contents.setBackgroundThrottling(true);
   }
 
-  contents.on('will-navigate', (_e, url) => {
-    console.log(`[Main will-navigate] ${contents.getType()}:`, url);
-  });
-  contents.on('did-redirect-navigation', (_e, url) => {
-    console.log(`[Main did-redirect] ${contents.getType()}:`, url);
-  });
-  contents.on('did-navigate', (_e, url) => {
-    console.log(`[Main did-navigate] ${contents.getType()}:`, url);
-  });
+  // Register session-level network interceptors and permissions strictly ONCE per session
+  if (!configuredSessions.has(contents.session)) {
+    configuredSessions.add(contents.session);
 
-  // Intercept Google OAuth requests and Slack SSB redirects
-  try {
-    contents.session.webRequest.onBeforeRequest(
-      { urls: ['https://accounts.google.com/o/oauth2/auth*', '*://*.slack.com/*'] },
-      (details, callback) => {
-        // Enforce account chooser for Google OAuth
-        if (details.url.includes('accounts.google.com/o/oauth2/auth')) {
-          try {
-            const urlObj = new URL(details.url);
-            const currentPrompt = urlObj.searchParams.get('prompt');
-            if (currentPrompt !== 'select_account') {
-              urlObj.searchParams.set('prompt', 'select_account');
-              console.log('[Google SSO] Enforcing prompt=select_account');
-              callback({ redirectURL: urlObj.toString() });
-              return;
-            }
-          } catch {}
-        }
-
-        // Intercept Slack Desktop App (SSB) redirects and route to Web Client
-        if (details.url.includes('ssb/redirect') || details.url.includes('%2Fssb%2Fredirect')) {
-          const webUrl = details.url
-            .replace('/ssb/redirect?entry_point=signin', '/client')
-            .replace('redir=%2Fssb%2Fredirect%3Fentry_point%3Dsignin', 'redir=%2Fclient');
-          console.log('[Slack SSO] Redirecting SSB flow to Web Client flow:', webUrl);
-          callback({ redirectURL: webUrl });
-          return;
-        }
-
-        callback({});
-      }
-    );
-  } catch {}
-
-  // Intercept HTTP response headers from Slack to monitor SSO response
-  try {
-    contents.session.webRequest.onHeadersReceived(
-      { urls: ['*://*.slack.com/*'] },
-      (details, callback) => {
-        if (details.url.includes('sso/google') || details.url.includes('sso_failed')) {
-          console.log(`[Slack Response ${details.statusCode}]:`, details.url);
-          if (details.responseHeaders) {
-            const loc = details.responseHeaders['location'] || details.responseHeaders['Location'];
-            if (loc) console.log('[Slack Location Header]:', loc);
+    // Intercept Google OAuth requests and Slack SSB redirects
+    try {
+      contents.session.webRequest.onBeforeRequest(
+        { urls: ['https://accounts.google.com/o/oauth2/auth*', '*://*.slack.com/*'] },
+        (details, callback) => {
+          // Enforce account chooser for Google OAuth
+          if (details.url.includes('accounts.google.com/o/oauth2/auth')) {
+            try {
+              const urlObj = new URL(details.url);
+              const currentPrompt = urlObj.searchParams.get('prompt');
+              if (currentPrompt !== 'select_account') {
+                urlObj.searchParams.set('prompt', 'select_account');
+                callback({ redirectURL: urlObj.toString() });
+                return;
+              }
+            } catch {}
           }
+
+          // Intercept Slack Desktop App (SSB) redirects and route to Web Client
+          if (details.url.includes('ssb/redirect') || details.url.includes('%2Fssb%2Fredirect')) {
+            const webUrl = details.url
+              .replace('/ssb/redirect?entry_point=signin', '/client')
+              .replace('redir=%2Fssb%2Fredirect%3Fentry_point%3Dsignin', 'redir=%2Fclient');
+            callback({ redirectURL: webUrl });
+            return;
+          }
+
+          callback({});
         }
-        callback({ responseHeaders: details.responseHeaders });
-      }
-    );
-  } catch {}
+      );
+    } catch {}
 
-  // Intercept HTTP request headers to strip any residual Electron identifier
-  try {
-    contents.session.webRequest.onBeforeSendHeaders(
-      { urls: ['*://*/*'] },
-      (details, callback) => {
-        const url = details.url.toLowerCase();
-        // Identify all Google requests (Gemini, Google Accounts, Google Auth)
-        const isGoogle =
-          url.includes('google.com') ||
-          url.includes('google.co') ||
-          url.includes('gstatic.com') ||
-          url.includes('googleusercontent.com');
+    // Intercept HTTP request headers to strip any residual Electron identifier
+    try {
+      contents.session.webRequest.onBeforeSendHeaders(
+        { urls: ['*://*/*'] },
+        (details, callback) => {
+          const url = details.url.toLowerCase();
+          // Identify all Google requests (Gemini, Google Accounts, Google Auth)
+          const isGoogle =
+            url.includes('google.com') ||
+            url.includes('google.co') ||
+            url.includes('gstatic.com') ||
+            url.includes('googleusercontent.com');
 
-        // Slack requests should maintain consistent Chrome User-Agent
-        const isSlack = url.includes('slack.com');
+          // Slack requests should maintain consistent Chrome User-Agent
+          const isSlack = url.includes('slack.com');
 
-        if (url.includes('slack.com/sso/google')) {
-          console.log('[Slack SSO Callback Request]:', details.url);
-          console.log(
-            '[Slack SSO Cookie Header]:',
-            details.requestHeaders['Cookie']
-              ? `Present (${details.requestHeaders['Cookie'].length} bytes)`
-              : 'MISSING!'
-          );
+          if (isGoogle && !isSlack) {
+            // Send pure Firefox User-Agent across ALL Google requests (Gemini & Google Accounts)
+            details.requestHeaders['User-Agent'] = FIREFOX_USER_AGENT;
+            delete details.requestHeaders['sec-ch-ua'];
+            delete details.requestHeaders['sec-ch-ua-mobile'];
+            delete details.requestHeaders['sec-ch-ua-platform'];
+            delete details.requestHeaders['sec-ch-ua-platform-version'];
+            delete details.requestHeaders['sec-ch-ua-arch'];
+            delete details.requestHeaders['sec-ch-ua-bitness'];
+            delete details.requestHeaders['sec-ch-ua-model'];
+            delete details.requestHeaders['sec-ch-ua-full-version'];
+            delete details.requestHeaders['sec-ch-ua-full-version-list'];
+          } else {
+            // Send standard Chrome User-Agent across Slack and all other services
+            details.requestHeaders['User-Agent'] = CHROME_USER_AGENT;
+          }
+          callback({ requestHeaders: details.requestHeaders });
         }
+      );
+    } catch {}
 
-        if (isGoogle && !isSlack) {
-          // Send pure Firefox User-Agent across ALL Google requests (Gemini & Google Accounts)
-          // Completely eliminates Google's "This browser or app may not be secure" block
-          details.requestHeaders['User-Agent'] = FIREFOX_USER_AGENT;
-          delete details.requestHeaders['sec-ch-ua'];
-          delete details.requestHeaders['sec-ch-ua-mobile'];
-          delete details.requestHeaders['sec-ch-ua-platform'];
-          delete details.requestHeaders['sec-ch-ua-platform-version'];
-          delete details.requestHeaders['sec-ch-ua-arch'];
-          delete details.requestHeaders['sec-ch-ua-bitness'];
-          delete details.requestHeaders['sec-ch-ua-model'];
-          delete details.requestHeaders['sec-ch-ua-full-version'];
-          delete details.requestHeaders['sec-ch-ua-full-version-list'];
-        } else {
-          // Send standard Chrome User-Agent across Slack and all other services
-          details.requestHeaders['User-Agent'] = CHROME_USER_AGENT;
-        }
-        callback({ requestHeaders: details.requestHeaders });
-      }
-    );
-  } catch {}
+    // Enable microphone, camera, notification, and persistent-storage permissions
+    contents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
+      const allowedPermissions = [
+        'media',
+        'geolocation',
+        'notifications',
+        'midi',
+        'camera',
+        'microphone',
+        'persistent-storage',
+        'storage-access',
+        'clipboard-read',
+        'clipboard-sanitized-write',
+      ];
+      callback(allowedPermissions.includes(permission));
+    });
 
-  // Enable microphone, camera, notification, and persistent-storage permissions
-  contents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
-    const allowedPermissions = [
-      'media',
-      'geolocation',
-      'notifications',
-      'midi',
-      'camera',
-      'microphone',
-      'persistent-storage',
-      'storage-access',
-      'clipboard-read',
-      'clipboard-sanitized-write',
-    ];
-    callback(allowedPermissions.includes(permission));
-  });
-
-  contents.session.setPermissionCheckHandler(() => true);
+    contents.session.setPermissionCheckHandler(() => true);
+  }
 
   // Handle new window / link clicks
   contents.setWindowOpenHandler(({ url }) => {
@@ -320,6 +320,11 @@ app.on('web-contents-created', (_event, contents) => {
 app.whenReady().then(() => {
   createWindow();
 
+  // Periodically flush IndexedDB and cookies every 2 minutes so WhatsApp E2EE ratchet keys never corrupt on crash/kill
+  setInterval(() => {
+    flushAllSessions();
+  }, 120000);
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
@@ -327,10 +332,30 @@ app.whenReady().then(() => {
   });
 });
 
+app.on('before-quit', () => {
+  flushAllSessions();
+});
+
+app.on('will-quit', () => {
+  flushAllSessions();
+});
+
 app.on('window-all-closed', () => {
+  flushAllSessions();
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+// Flush storage cleanly if terminated from terminal (Ctrl+C / SIGTERM)
+process.on('SIGINT', () => {
+  flushAllSessions();
+  app.quit();
+});
+
+process.on('SIGTERM', () => {
+  flushAllSessions();
+  app.quit();
 });
 
 // IPC Bridge Handlers
@@ -339,17 +364,21 @@ ipcMain.handle('chatty:get-system-memory', async () => {
     const totalMem = os.totalmem();
     const freeMem = os.freemem();
     const appMetrics = app.getAppMetrics();
+    const totalWorkingSetKB = appMetrics.reduce(
+      (sum, m) => sum + (m.memory?.workingSetSize || 0),
+      0
+    );
     const processMem = await process.getProcessMemoryInfo();
 
     return {
       totalMemBytes: totalMem,
       freeMemBytes: freeMem,
-      processMemoryKB: processMem.residentSet,
+      processMemoryKB: totalWorkingSetKB > 0 ? totalWorkingSetKB : processMem.residentSet,
       appMetrics: appMetrics.map((m) => ({
         pid: m.pid,
         type: m.type,
-        cpu: m.cpu.percentCPUUsage,
-        memoryMB: Math.round(m.memory.workingSetSize / 1024),
+        cpu: Number((m.cpu?.percentCPUUsage || 0).toFixed(1)),
+        memoryMB: Math.round((m.memory?.workingSetSize || 0) / 1024),
       })),
     };
   } catch (err: any) {

@@ -12,6 +12,8 @@ export const WebViewContainer: React.FC = () => {
     services,
     activeServiceId,
     secondaryServiceId,
+    focusedSplitPane,
+    setFocusedSplitPane,
     settings,
     setUnreadCount,
     wakeService,
@@ -122,10 +124,9 @@ export const WebViewContainer: React.FC = () => {
   const isNoir = settings.theme === 'noir';
 
   // Render a single service panel
-  const renderServicePane = (service: Service) => {
-    // Tab only fully unmounts if background notifications are disabled and the tab isn't marked neverSleep
-    const isSleeping =
-      service.isHibernated && !service.neverSleep && !settings.backgroundNotifications;
+  const renderServicePane = (service: Service, splitPaneRole?: 'primary' | 'secondary') => {
+    // Unmount webview when hibernated (Tier 2 Deep Hibernation - 0MB renderer RAM)
+    const isSleeping = service.isHibernated && !service.neverSleep;
 
     if (!initialUrlsRef.current[service.id]) {
       initialUrlsRef.current[service.id] = service.url;
@@ -139,6 +140,16 @@ export const WebViewContainer: React.FC = () => {
           isNoir ? 'bg-[#0F111A]' : 'bg-white'
         }`}
       >
+        {/* Split-View Active Pane Focus Indicator Bar */}
+        {splitPaneRole && (
+          <div
+            className={`h-[2px] w-full shrink-0 transition-opacity duration-200 ${
+              focusedSplitPane === splitPaneRole ? 'opacity-100' : 'opacity-0'
+            }`}
+            style={{ backgroundColor: service.accentColor || activeTheme.accent }}
+          />
+        )}
+
         {/* Hibernation Sleep Overlay if tab is sleeping */}
         {isSleeping ? (
           <div
@@ -259,6 +270,13 @@ export const WebViewContainer: React.FC = () => {
                   }
                 });
 
+                // Track focus inside webview for Split View active pane routing
+                node.addEventListener('focus', () => {
+                  if (splitPaneRole) {
+                    setFocusedSplitPane(splitPaneRole);
+                  }
+                });
+
                 // Set zoom and mute safely only once dom-ready has fired!
                 node.addEventListener('dom-ready', () => {
                   try {
@@ -318,12 +336,13 @@ export const WebViewContainer: React.FC = () => {
 
           {/* Left Pane */}
           <div
-            className={`h-full relative overflow-hidden ${
+            onMouseDownCapture={() => setFocusedSplitPane('primary')}
+            className={`h-full relative overflow-hidden webview-active ${
               isDraggingSplit ? 'pointer-events-none select-none' : ''
             }`}
             style={{ width: `${liveRatio}%` }}
           >
-            {primaryService && renderServicePane(primaryService)}
+            {primaryService && renderServicePane(primaryService, 'primary')}
           </div>
 
           {/* Draggable Divider */}
@@ -347,12 +366,13 @@ export const WebViewContainer: React.FC = () => {
 
           {/* Right Pane */}
           <div
-            className={`h-full relative overflow-hidden ${
+            onMouseDownCapture={() => setFocusedSplitPane('secondary')}
+            className={`h-full relative overflow-hidden webview-active ${
               isDraggingSplit ? 'pointer-events-none select-none' : ''
             }`}
             style={{ width: `${100 - liveRatio}%` }}
           >
-            {secondaryService && renderServicePane(secondaryService)}
+            {secondaryService && renderServicePane(secondaryService, 'secondary')}
           </div>
         </div>
       ) : (
@@ -366,7 +386,9 @@ export const WebViewContainer: React.FC = () => {
             return (
               <div
                 key={service.id}
-                className="w-full h-full absolute inset-0"
+                className={`w-full h-full absolute inset-0 ${
+                  isVisible ? 'webview-active' : 'hidden'
+                }`}
                 style={{ display: isVisible ? 'flex' : 'none' }}
               >
                 {renderServicePane(service)}

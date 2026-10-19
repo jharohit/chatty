@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { SERVICE_PRESETS, THEMES } from '../constants/presets';
 import { ServicePreset, WorkspaceId } from '../types';
 import { ServiceIcon } from './ServiceIcon';
-import { X, Plus, Sparkles, ShieldCheck, Globe, Check, Trash2 } from 'lucide-react';
+import { X, Plus, Sparkles, ShieldCheck, Globe, Check, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 
 const PASTEL_COLORS = [
   '#25D366', // WhatsApp green
@@ -24,6 +24,7 @@ export const AddServiceModal: React.FC = () => {
     setAddServiceOpen,
     addService,
     removeService,
+    moveServiceOrder,
     services,
     settings,
   } = useApp();
@@ -397,7 +398,7 @@ export const AddServiceModal: React.FC = () => {
               </div>
 
               <div className="divide-y divide-zinc-200 dark:divide-zinc-800 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-                {services.map((s) => (
+                {services.map((s, idx) => (
                   <div
                     key={s.id}
                     className="flex items-center justify-between p-3.5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
@@ -412,6 +413,11 @@ export const AddServiceModal: React.FC = () => {
                       <div>
                         <div className="font-semibold text-xs flex items-center space-x-2">
                           <span>{s.name}</span>
+                          {idx < 9 && (
+                            <span className="px-1.5 py-0.5 rounded font-mono text-[10px] bg-zinc-200/80 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                              ⌘{idx + 1}
+                            </span>
+                          )}
                           {s.accountLabel && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/5 dark:bg-white/10">
                               {s.accountLabel}
@@ -429,14 +435,36 @@ export const AddServiceModal: React.FC = () => {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => removeService(s.id)}
-                      className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 flex items-center space-x-1.5 transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                      title={`Remove ${s.name} from sidebar`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Remove</span>
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      {/* Reorder Up/Down Controls */}
+                      <div className="flex items-center space-x-1 mr-1">
+                        <button
+                          onClick={() => moveServiceOrder(s.id, 'up')}
+                          disabled={idx === 0}
+                          className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                          title="Move Up"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => moveServiceOrder(s.id, 'down')}
+                          disabled={idx === services.length - 1}
+                          className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                          title="Move Down"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => removeService(s.id)}
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 flex items-center space-x-1.5 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                        title={`Remove ${s.name} from sidebar`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Remove</span>
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

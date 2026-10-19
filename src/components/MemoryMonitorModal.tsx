@@ -112,10 +112,18 @@ export const MemoryMonitorModal: React.FC = () => {
           <div className="grid grid-cols-3 gap-3">
             <div className="p-4 rounded-2xl bg-black/5 dark:bg-white/5 border border-inherit">
               <div className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider mb-1">
-                Chatty App RAM
+                Total Chatty RAM ({memoryStats?.appMetrics?.length || 1} procs)
               </div>
               <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                {totalAppMemMB} <span className="text-xs font-normal">MB</span>
+                {totalAppMemMB >= 1024 ? (
+                  <>
+                    {(totalAppMemMB / 1024).toFixed(2)} <span className="text-xs font-normal">GB</span>
+                  </>
+                ) : (
+                  <>
+                    {totalAppMemMB} <span className="text-xs font-normal">MB</span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -167,8 +175,8 @@ export const MemoryMonitorModal: React.FC = () => {
             <div className="space-y-2">
               {services.map((service) => {
                 const isActive = service.id === activeServiceId;
-                const isSecondary = service.id === secondaryServiceId;
-                const isSleeping = service.isHibernated;
+                const isSecondary = settings.splitViewEnabled && service.id === secondaryServiceId;
+                const isSleeping = service.isHibernated && !service.neverSleep;
 
                 return (
                   <div
@@ -176,7 +184,7 @@ export const MemoryMonitorModal: React.FC = () => {
                     className="flex items-center justify-between p-3 rounded-2xl border border-inherit bg-black/[0.02] dark:bg-white/[0.02] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                   >
                     <div className="flex items-center space-x-3">
-                      <ServiceIcon type={service.type} size={28} />
+                      <ServiceIcon type={service.type} size={28} url={service.url} />
                       <div>
                         <div className="flex items-center space-x-2">
                           <span className="text-[13.5px] font-medium text-zinc-900 dark:text-zinc-100">{service.name}</span>
@@ -193,9 +201,9 @@ export const MemoryMonitorModal: React.FC = () => {
                     </div>
 
                     <div className="flex items-center space-x-2">
-                      {isActive ? (
+                      {isActive || isSecondary ? (
                         <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                          Active
+                          {isSecondary ? 'Split Pane' : 'Active'}
                         </span>
                       ) : isSleeping ? (
                         <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
@@ -203,12 +211,12 @@ export const MemoryMonitorModal: React.FC = () => {
                         </span>
                       ) : (
                         <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                          Awake
+                          Throttled (1Hz)
                         </span>
                       )}
 
                       {/* Sleep / Wake toggle */}
-                      {!isActive && (
+                      {!isActive && !isSecondary && (
                         isSleeping ? (
                           <button
                             onClick={() => wakeService(service.id)}

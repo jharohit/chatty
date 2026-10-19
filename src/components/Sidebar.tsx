@@ -10,13 +10,14 @@ import {
   Settings as SettingsIcon,
   MoonStar,
   Zap,
-  X,
   Trash2,
   RotateCw,
   Volume2,
   VolumeX,
   BedDouble,
   Play,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -25,6 +26,8 @@ export const Sidebar: React.FC = () => {
     activeServiceId,
     setActiveServiceId,
     setSecondaryServiceId,
+    moveService,
+    moveServiceOrder,
     removeService,
     updateService,
     hibernateService,
@@ -42,8 +45,12 @@ export const Sidebar: React.FC = () => {
   const activeTheme = THEMES[settings.theme] || THEMES.sakura;
   const isNoir = settings.theme === 'noir';
 
-  // Live RAM tracking for the sidebar badge
+  // Live RAM tracking for the sidebar badge (sums all helper processes)
   const [memoryMB, setMemoryMB] = useState<number>(180);
+
+  // Drag-and-drop state for sidebar reordering
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   // Right-click context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -99,23 +106,58 @@ export const Sidebar: React.FC = () => {
       {/* Top drag handle region for macOS traffic lights */}
       <div className="titlebar-drag w-full h-11 shrink-0" />
 
-      {/* Main Service List (Filtered by Active Workspace) */}
+      {/* Main Service List (Filtered by Active Workspace, Drag-and-Drop Reorderable) */}
       <div className="w-full flex-1 flex flex-col items-center space-y-3 overflow-y-auto overflow-x-hidden no-scrollbar py-2">
-        {filteredServices.map((service, index) => {
+        {filteredServices.map((service) => {
           const isActive = service.id === activeServiceId;
           const unread = unreadCounts[service.id] || 0;
           const isHibernated = service.isHibernated;
+          const isDraggingThis = draggedId === service.id;
+          const isDragOverThis = dragOverId === service.id && draggedId !== service.id;
 
           return (
             <div
               key={service.id}
-              className="relative group flex items-center justify-center"
+              draggable
+              onDragStart={(e) => {
+                setDraggedId(service.id);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', service.id);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                if (dragOverId !== service.id) {
+                  setDragOverId(service.id);
+                }
+              }}
+              onDragLeave={() => {
+                if (dragOverId === service.id) {
+                  setDragOverId(null);
+                }
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const sourceId = draggedId || e.dataTransfer.getData('text/plain');
+                if (sourceId && sourceId !== service.id) {
+                  moveService(sourceId, service.id);
+                }
+                setDraggedId(null);
+                setDragOverId(null);
+              }}
+              onDragEnd={() => {
+                setDraggedId(null);
+                setDragOverId(null);
+              }}
+              className={`relative group flex items-center justify-center transition-transform duration-150 ${
+                isDraggingThis ? 'opacity-40 scale-95' : ''
+              } ${isDragOverThis ? 'ring-2 ring-purple-500 rounded-2xl scale-105' : ''}`}
               onContextMenu={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 setContextMenu({
-                  x: Math.min(e.clientX, window.innerWidth - 180),
-                  y: Math.min(e.clientY, window.innerHeight - 200),
+                  x: Math.min(e.clientX, window.innerWidth - 190),
+                  y: Math.min(e.clientY, window.innerHeight - 280),
                   serviceId: service.id,
                 });
               }}
@@ -179,23 +221,25 @@ export const Sidebar: React.FC = () => {
 
       {/* Bottom Action Dock */}
       <div className="w-full flex flex-col items-center space-y-2 pt-2 border-t shrink-0 border-inherit">
-        {/* Live RAM Monitor Widget */}
-        <button
-          onClick={() => setMemoryModalOpen(true)}
-          className={`group relative flex items-center justify-center p-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
-            isNoir
-              ? 'hover:bg-zinc-800 text-emerald-400'
-              : 'hover:bg-white/70 text-emerald-600'
-          }`}
-          title="Memory Optimizer & RAM Monitor"
-        >
-          <div className="flex flex-col items-center">
-            <Zap className="w-4 h-4 text-emerald-500 group-hover:animate-pulse" />
-            <span className="text-[11px] font-mono font-bold mt-0.5">
-              {memoryMB}M
-            </span>
-          </div>
-        </button>
+        {/* Live RAM Monitor Widget (Sums all helper & renderer processes) */}
+        {settings.showRamMonitor !== false && (
+          <button
+            onClick={() => setMemoryModalOpen(true)}
+            className={`group relative flex items-center justify-center p-1.5 rounded-xl transition-all duration-200 cursor-pointer ${
+              isNoir
+                ? 'hover:bg-zinc-800 text-emerald-400'
+                : 'hover:bg-white/70 text-emerald-600'
+            }`}
+            title="Memory Optimizer & RAM Monitor"
+          >
+            <div className="flex flex-col items-center">
+              <Zap className="w-4 h-4 text-emerald-500 group-hover:animate-pulse" />
+              <span className="text-[11px] font-mono font-bold mt-0.5">
+                {memoryMB >= 1024 ? `${(memoryMB / 1024).toFixed(1)}G` : `${memoryMB}M`}
+              </span>
+            </div>
+          </button>
+        )}
 
         {/* Split View Toggle */}
         <button
@@ -378,6 +422,31 @@ export const Sidebar: React.FC = () => {
           >
             <Columns className="w-3.5 h-3.5 text-purple-500" />
             <span>Open in Right Split Pane</span>
+          </button>
+
+          {/* Reorder Controls */}
+          <div className="my-1 border-t border-inherit" />
+
+          <button
+            onClick={() => {
+              moveServiceOrder(selectedContextService.id, 'up');
+              setContextMenu(null);
+            }}
+            className="w-full px-3 py-1.5 text-xs text-left flex items-center space-x-2 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
+          >
+            <ArrowUp className="w-3.5 h-3.5 text-zinc-400" />
+            <span>Move Up in Sidebar</span>
+          </button>
+
+          <button
+            onClick={() => {
+              moveServiceOrder(selectedContextService.id, 'down');
+              setContextMenu(null);
+            }}
+            className="w-full px-3 py-1.5 text-xs text-left flex items-center space-x-2 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
+          >
+            <ArrowDown className="w-3.5 h-3.5 text-zinc-400" />
+            <span>Move Down in Sidebar</span>
           </button>
 
           <div className="my-1 border-t border-inherit" />

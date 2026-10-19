@@ -11,6 +11,8 @@ interface AppContextType {
   activeServiceId: string;
   secondaryService: Service | null;
   secondaryServiceId: string | null;
+  focusedSplitPane: 'primary' | 'secondary';
+  focusedService: Service | null;
   settings: AppSettings;
   unreadCounts: Record<string, number>;
   totalUnread: number;
@@ -25,6 +27,9 @@ interface AppContextType {
   setServices: React.Dispatch<React.SetStateAction<Service[]>>;
   setActiveServiceId: (id: string) => void;
   setSecondaryServiceId: (id: string | null) => void;
+  setFocusedSplitPane: (pane: 'primary' | 'secondary') => void;
+  moveService: (draggedId: string, targetId: string) => void;
+  moveServiceOrder: (id: string, direction: 'up' | 'down') => void;
   addService: (
     preset: ServicePreset,
     customName?: string,
@@ -107,7 +112,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return services[0]?.id || 'wa-personal';
   });
 
-  const [secondaryServiceId, setSecondaryServiceId] = useState<string | null>(null);
+  const [secondaryServiceId, setSecondaryServiceIdState] = useState<string | null>(null);
+  const [focusedSplitPane, setFocusedSplitPane] = useState<'primary' | 'secondary'>('primary');
 
   // Settings
   const [settings, setSettings] = useState<AppSettings>(() => {
@@ -188,7 +194,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
   }, [activeServiceId]);
 
-  // Active & Secondary Services
+  // Active, Secondary & Focused Services
   const activeService = useMemo(() => {
     return services.find((s) => s.id === activeServiceId) || services[0] || null;
   }, [services, activeServiceId]);
@@ -197,6 +203,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!settings.splitViewEnabled || !secondaryServiceId) return null;
     return services.find((s) => s.id === secondaryServiceId) || null;
   }, [services, settings.splitViewEnabled, secondaryServiceId]);
+
+  const focusedService = useMemo(() => {
+    if (settings.splitViewEnabled && secondaryService && focusedSplitPane === 'secondary') {
+      return secondaryService;
+    }
+    return activeService;
+  }, [settings.splitViewEnabled, secondaryService, focusedSplitPane, activeService]);
+
+  const setSecondaryServiceId = useCallback((id: string | null) => {
+    setSecondaryServiceIdState(id);
+    if (id) {
+      setServices((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, isHibernated: false, lastActive: Date.now() } : s))
+      );
+    }
+  }, []);
+
+  // Reorder services via drag-and-drop
+  const moveService = useCallback((draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return;
+    sounds.playClick();
+    setServices((prev) => {
+      const fromIndex = prev.findIndex((s) => s.id === draggedId);
+      const toIndex = prev.findIndex((s) => s.id === targetId);
+      if (fromIndex === -1 || toIndex === -1) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  }, []);
+
+  // Reorder service up/down by 1 slot
+  const moveServiceOrder = useCallback((id: string, direction: 'up' | 'down') => {
+    sounds.playClick();
+    setServices((prev) => {
+      const idx = prev.findIndex((s) => s.id === id);
+      if (idx === -1) return prev;
+      const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(idx, 1);
+      next.splice(targetIdx, 0, moved);
+      return next;
+    });
+  }, []);
 
   // Total Unread Count & Dock synchronization
   const totalUnread = useMemo(() => {
@@ -327,16 +379,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   }, [activeServiceId, secondaryServiceId]);
 
-  // Auto-sleep timer for idle background tabs
+  // Auto-sleep timer for idle background tabs (3-Tier Tab Lifecycle)
   useEffect(() => {
-    if (!settings.autoSleepMinutes || settings.autoSleepMinutes <= 0) return;
+    const sleepMinutes = settings.autoSleepMinutes || 15;
+    if (sleepMinutes <= 0) return;
 
-    const thresholdMs = settings.autoSleepMinutes * 60 * 1000;
+    const thresholdMs = sleepMinutes * 60 * 1000;
     const interval = setInterval(() => {
       const now = Date.now();
       setServices((prev) =>
         prev.map((s) => {
+          const isAiTab =
+            s.workspaceId === 'ai' ||
+            ['chatgpt', 'claude', 'gemini', 'perplexity', 'grok'].includes(s.type);
+
+          // AI tabs always auto-hibernate when idle (they never receive push chat notifications)
+          // Messaging tabs auto-hibernate when backgroundNotifications is off (otherwise stay in Tier 1 throttled)
+          const shouldAutoSleep = isAiTab || !settings.backgroundNotifications;
+
           if (
+            shouldAutoSleep &&
             s.id !== activeServiceId &&
             s.id !== secondaryServiceId &&
             !s.isHibernated &&
@@ -351,7 +413,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 60000); // check once a minute
 
     return () => clearInterval(interval);
-  }, [settings.autoSleepMinutes, activeServiceId, secondaryServiceId]);
+  }, [settings.autoSleepMinutes, settings.backgroundNotifications, activeServiceId, secondaryServiceId]);
 
   // Split View Toggle
   const toggleSplitView = useCallback(
@@ -375,7 +437,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       });
     },
-    [secondaryServiceId, services, activeServiceId]
+    [secondaryServiceId, services, activeServiceId, setSecondaryServiceId]
   );
 
   const setSplitRatio = useCallback((ratio: number) => {
@@ -418,16 +480,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const reloadActiveService = useCallback(() => {
     sounds.playClick();
-    const event = new CustomEvent('chatty:reload-webview', { detail: { id: activeServiceId } });
+    const targetId = focusedService?.id || activeServiceId;
+    const event = new CustomEvent('chatty:reload-webview', { detail: { id: targetId } });
     window.dispatchEvent(event);
-  }, [activeServiceId]);
+  }, [focusedService, activeServiceId]);
 
   const openExternalActiveService = useCallback(() => {
     sounds.playClick();
-    if (activeService) {
-      platform.openExternal(activeService.url);
+    const target = focusedService || activeService;
+    if (target) {
+      platform.openExternal(target.url);
     }
-  }, [activeService]);
+  }, [focusedService, activeService]);
 
   const updateSettings = useCallback((partial: Partial<AppSettings>) => {
     setSettings((prev) => {
@@ -442,18 +506,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setDefaultZoom = useCallback(
     (zoom: number) => {
       updateSettings({ defaultZoom: zoom });
-      // Apply immediately to current service
-      if (activeServiceId) {
-        updateService(activeServiceId, { zoomFactor: zoom });
+      const targetId = focusedService?.id || activeServiceId;
+      // Apply immediately to focused service
+      if (targetId) {
+        updateService(targetId, { zoomFactor: zoom });
         try {
-          const webview = document.getElementById(`webview-${activeServiceId}`) as any;
+          const webview = document.getElementById(`webview-${targetId}`) as any;
           if (webview && typeof webview.setZoomFactor === 'function') {
             webview.setZoomFactor(zoom);
           }
         } catch {}
       }
     },
-    [updateSettings, activeServiceId, updateService]
+    [updateSettings, focusedService, activeServiceId, updateService]
   );
 
   // Swap Left/Right Split View Panes
@@ -465,14 +530,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveServiceIdState(prevSecondary);
     setSecondaryServiceId(prevPrimary);
     setSettings((prev) => ({ ...prev, splitViewSecondaryId: prevPrimary }));
-  }, [settings.splitViewEnabled, secondaryServiceId, activeServiceId]);
+  }, [settings.splitViewEnabled, secondaryServiceId, activeServiceId, setSecondaryServiceId]);
 
   // Filtered Services based on Active Workspace
   const filteredServices = useMemo(() => {
     if (!settings.activeWorkspaceId || settings.activeWorkspaceId === 'all') return services;
     return services.filter((s) => {
       if (s.workspaceId) return s.workspaceId === settings.activeWorkspaceId;
-      if (settings.activeWorkspaceId === 'ai') return s.type === 'chatgpt' || s.type === 'claude';
+      if (settings.activeWorkspaceId === 'ai') {
+        return ['chatgpt', 'claude', 'gemini', 'perplexity', 'grok'].includes(s.type);
+      }
       if (settings.activeWorkspaceId === 'work') {
         return s.type === 'slack' || s.type === 'google_chat' || s.type === 'whatsapp_business';
       }
@@ -496,18 +563,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (id !== 'all') {
         const matching = services.filter((s) => {
           if (s.workspaceId) return s.workspaceId === id;
-          if (id === 'ai') return s.type === 'chatgpt' || s.type === 'claude';
+          if (id === 'ai') {
+            return ['chatgpt', 'claude', 'gemini', 'perplexity', 'grok'].includes(s.type);
+          }
           if (id === 'work') {
             return s.type === 'slack' || s.type === 'google_chat' || s.type === 'whatsapp_business';
           }
-            if (id === 'personal') {
-              return (
-                s.type === 'whatsapp' ||
-                s.type === 'telegram' ||
-                s.type === 'messenger' ||
-                s.type === 'discord'
-              );
-            }
+          if (id === 'personal') {
+            return (
+              s.type === 'whatsapp' ||
+              s.type === 'telegram' ||
+              s.type === 'messenger' ||
+              s.type === 'discord'
+            );
+          }
           return false;
         });
         if (matching.length > 0 && !matching.some((s) => s.id === activeServiceId)) {
@@ -536,6 +605,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeServiceId,
         secondaryService,
         secondaryServiceId,
+        focusedSplitPane,
+        focusedService,
         settings,
         unreadCounts,
         totalUnread,
@@ -548,6 +619,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setServices,
         setActiveServiceId,
         setSecondaryServiceId,
+        setFocusedSplitPane,
+        moveService,
+        moveServiceOrder,
         addService,
         removeService,
         updateService,

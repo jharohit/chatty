@@ -16,7 +16,10 @@ export const App: React.FC = () => {
   const {
     services,
     settings,
+    focusedSplitPane,
     setActiveServiceId,
+    setSecondaryServiceId,
+    reloadActiveService,
     setCommandPaletteOpen,
     setAddServiceOpen,
     setSettingsOpen,
@@ -51,6 +54,11 @@ export const App: React.FC = () => {
           e.preventDefault();
           toggleScreenShareShield();
         }
+        // Cmd+R: Reload Focused Service
+        else if (e.key.toLowerCase() === 'r') {
+          e.preventDefault();
+          reloadActiveService();
+        }
         // Cmd+K: Command Palette
         else if (e.key.toLowerCase() === 'k') {
           e.preventDefault();
@@ -76,12 +84,16 @@ export const App: React.FC = () => {
           e.preventDefault();
           setSettingsOpen(true);
         }
-        // Cmd+1..9: Select Chat Account
+        // Cmd+1..9: Select Chat Account (Routes to focused pane when in Split View)
         else if (e.key >= '1' && e.key <= '9') {
           const index = parseInt(e.key, 10) - 1;
           if (services[index]) {
             e.preventDefault();
-            setActiveServiceId(services[index].id);
+            if (settings.splitViewEnabled && focusedSplitPane === 'secondary') {
+              setSecondaryServiceId(services[index].id);
+            } else {
+              setActiveServiceId(services[index].id);
+            }
           }
         }
       }
@@ -91,13 +103,19 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     services,
+    settings.splitViewEnabled,
+    focusedSplitPane,
     setCommandPaletteOpen,
     setAddServiceOpen,
     setSettingsOpen,
     toggleSplitView,
+    swapSplitServices,
     toggleFocusMode,
     lockApp,
+    toggleScreenShareShield,
+    reloadActiveService,
     setActiveServiceId,
+    setSecondaryServiceId,
   ]);
 
   return (

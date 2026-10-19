@@ -6,6 +6,22 @@ const rootDir = path.resolve(__dirname, '..');
 const pkgPath = path.join(rootDir, 'package.json');
 const releaseDir = path.join(rootDir, 'release');
 const archiveDir = path.join(rootDir, 'release-archive');
+const envPath = path.join(rootDir, '.env');
+
+// Load .env if present (for APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID)
+if (fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, 'utf8');
+  envContent.split('\n').forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) return;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx > 0) {
+      const key = trimmed.slice(0, eqIdx).trim();
+      const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
+      if (!process.env[key]) process.env[key] = val;
+    }
+  });
+}
 
 // 1. Read current package.json
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
@@ -62,7 +78,7 @@ const macX64Dir = path.join(releaseDir, 'mac');
 if (fs.existsSync(macArmDir)) fs.rmSync(macArmDir, { recursive: true, force: true });
 if (fs.existsSync(macX64Dir)) fs.rmSync(macX64Dir, { recursive: true, force: true });
 
-// 5. Build and Package DMG
+// 5. Build, Sign, Notarize & Package DMG
 console.log(`🔨 Building and packaging new DMG...`);
 try {
   execSync('npm run dist', { stdio: 'inherit', cwd: rootDir });
@@ -71,6 +87,22 @@ try {
   pkg.version = currentVersion;
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8');
   process.exit(1);
+}
+
+// 5b. Notarize, Staple & Validate the generated DMG container
+try {
+  const { notarizeAndStapleTarget } = require('./notarize.cjs');
+  const dmgCandidates = [
+    path.join(releaseDir, `Chatty-${newVersion}-arm64.dmg`),
+    path.join(releaseDir, `Chatty-${newVersion}.dmg`),
+  ];
+  for (const dmgPath of dmgCandidates) {
+    if (fs.existsSync(dmgPath)) {
+      notarizeAndStapleTarget(dmgPath);
+    }
+  }
+} catch (err) {
+  console.warn('⚠️ DMG post-notarization step warning:', err.message || err);
 }
 
 // 6. Copy all historical versions back into release folder

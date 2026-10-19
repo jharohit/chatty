@@ -1,6 +1,6 @@
 {
   "name": "chatty",
-  "version": "1.0.9",
+  "version": "1.0.12",
   "description": "A designer-grade, high-performance, privacy-first pastel multi-chat macOS app",
   "main": "dist-electron/main.cjs",
   "scripts": {
@@ -14,6 +14,7 @@
     "dist": "npm run build && electron-builder --mac dmg",
     "dist:arm64": "npm run build && electron-builder --mac dmg --arm64",
     "dist:x64": "npm run build && electron-builder --mac dmg --x64",
+    "notarize": "node scripts/notarize.cjs",
     "release": "node scripts/release.cjs",
     "release:patch": "node scripts/release.cjs patch",
     "release:minor": "node scripts/release.cjs minor"
@@ -22,6 +23,7 @@
     "appId": "com.chatty.app",
     "productName": "Chatty",
     "copyright": "Copyright © 2026 Chatty",
+    "afterSign": "scripts/notarize.cjs",
     "directories": {
       "output": "release"
     },
@@ -37,9 +39,10 @@
       "target": [
         "dmg"
       ],
-      "hardenedRuntime": false,
+      "hardenedRuntime": true,
       "gatekeeperAssess": false,
-      "identity": null
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "dmg": {
       "title": "Chatty Installer",
