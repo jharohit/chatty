@@ -196,19 +196,11 @@ Chatty features six handcrafted themes built for visual comfort and eye strain r
 ## 📦 Installation & GitHub Releases
 
 ### Downloading Pre-built Binaries
-Download the latest signed/packaged DMG directly from the [GitHub Releases](../../releases) tab:
+Download the latest Apple-signed and notarized DMG directly from the [GitHub Releases](../../releases) tab:
 1. Download `Chatty-<version>-arm64.dmg` (Apple Silicon M1/M2/M3/M4) or Intel build.
-2. Open the DMG and drag **Chatty.app** into your `/Applications` folder.
+2. Open the DMG, drag **Chatty.app** into your `/Applications` folder, and launch directly—official releases are signed with an Apple Developer ID certificate and notarized by Apple for zero Gatekeeper warnings.
 
 > **Zero Data Loss on Updates**: When upgrading via a new DMG, macOS replaces only the application bundle in `/Applications`. All login cookies, persistent partitions, themes, and settings are stored safely in `~/Library/Application Support/Chatty/` and remain permanently preserved.
-
-#### macOS Gatekeeper for Community Builds
-If macOS displays an unverified developer warning upon initial launch:
-- **Right-click (or Control-click)** `Chatty.app` in `/Applications` and select **Open** > **Open**.
-- Or run this one-time command in Terminal:
-  ```bash
-  xattr -cr /Applications/Chatty.app
-  ```
 
 ---
 
